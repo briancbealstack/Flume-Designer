@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlumePath — water slide alignment solver</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sheet:#E8EDF0; --panel:#FDFEFE; --ink:#14212B; --graphite:#64757F;
+  --rule:#C2CED6; --flume:#0F7FA8; --flume-dk:#0A5C7A;
+  --signal:#D8511D; --pass:#2E7D5B; --warn:#A8720A; --unset:#8898A2;
+  --r:3px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--sheet); color:var(--ink);
+  font-family:'Barlow',system-ui,sans-serif; font-size:15px; line-height:1.45;
+  font-variant-numeric:tabular-nums;
+}
+h1,h2,h3{font-weight:600;margin:0;letter-spacing:-.01em}
+.num{font-variant-numeric:tabular-nums;text-align:right}
+
+/* ---------- header ---------- */
+header{
+  background:var(--ink); color:#DCE6EC; padding:10px 20px;
+  display:flex; gap:26px; align-items:baseline; flex-wrap:wrap;
+  position:sticky; top:0; z-index:20; border-bottom:2px solid var(--flume);
+}
+header h1{font-size:20px;color:#fff;letter-spacing:.02em}
+header h1 span{color:var(--flume);font-weight:400}
+.hstat{font-size:13px;color:#9BB0BC}
+.hstat b{color:#fff;font-weight:600;font-size:15px;margin-left:5px}
+header .spacer{flex:1}
+
+/* ---------- shell ---------- */
+.shell{display:grid;grid-template-columns:296px 1fr;gap:0;align-items:start}
+.rail{
+  background:var(--panel); border-right:1px solid var(--rule);
+  padding:0 0 60px; position:sticky; top:47px; max-height:calc(100vh - 47px);
+  overflow-y:auto;
+}
+.sheet{padding:18px 22px 80px;min-width:0}
+
+/* ---------- rail groups ---------- */
+.grp{border-bottom:1px solid var(--rule)}
+.grp>summary{
+  padding:9px 14px; cursor:pointer; font-weight:600; font-size:13.5px;
+  font-family:'Barlow Semi Condensed'; letter-spacing:.04em;
+  background:#F1F5F7; list-style:none; display:flex; align-items:center; gap:7px;
+}
+.grp>summary::-webkit-details-marker{display:none}
+.grp>summary::before{content:'▸';color:var(--graphite);font-size:11px;transition:transform .15s}
+.grp[open]>summary::before{transform:rotate(90deg)}
+.grp .body{padding:10px 14px 14px}
+.f{display:grid;grid-template-columns:1fr 84px;gap:5px 8px;align-items:center;margin-bottom:6px}
+.f label{font-size:13px;color:var(--ink);line-height:1.2}
+.f .u{font-size:11.5px;color:var(--graphite)}
+input[type=number],input[type=text],select{
+  width:100%;padding:4px 6px;border:1px solid var(--rule);border-radius:var(--r);
+  background:#fff;font-family:inherit;font-size:13.5px;color:var(--ink);
+  font-variant-numeric:tabular-nums;text-align:right;
+}
+select{text-align:left}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--flume);outline-offset:1px}
+input.unset{background:#F6F8F9;border-style:dashed;color:var(--unset)}
+.hint{font-size:12px;color:var(--graphite);line-height:1.35;margin:6px 0 0}
+
+button{
+  font-family:inherit;font-size:14px;font-weight:500;padding:7px 13px;
+  border:1px solid var(--ink);border-radius:var(--r);background:var(--ink);color:#fff;cursor:pointer;
+}
+button.ghost{background:transparent;color:var(--ink);border-color:var(--rule)}
+button.ghost:hover{border-color:var(--ink)}
+button:hover{background:var(--flume-dk);border-color:var(--flume-dk)}
+button.wide{width:100%;margin-top:4px}
+button:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- notice ---------- */
+.notice{
+  background:#FFF6EE;border:1px solid #E8C09E;border-left:4px solid var(--signal);
+  padding:10px 14px;border-radius:var(--r);margin-bottom:16px;font-size:13.5px;line-height:1.5;
+}
+.notice b{font-weight:600}
+
+/* ---------- section blocks ---------- */
+.block{background:var(--panel);border:1px solid var(--rule);border-radius:var(--r);margin-bottom:16px}
+.block>h2{
+  font-size:14px;font-family:'Barlow Semi Condensed';letter-spacing:.04em;
+  padding:8px 14px;border-bottom:1px solid var(--rule);background:#F1F5F7;
+  display:flex;align-items:center;gap:10px;
+}
+.block>h2 .sub{font-family:'Barlow';font-weight:400;font-size:12.5px;color:var(--graphite);letter-spacing:0}
+.block .body{padding:12px 14px}
+
+/* ---------- tables ---------- */
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{
+  font-family:'Barlow Semi Condensed';font-weight:600;font-size:12.5px;letter-spacing:.03em;
+  color:var(--graphite);text-align:left;padding:5px 8px;border-bottom:1.5px solid var(--rule);
+  position:sticky;top:0;background:var(--panel);
+}
+th.num,td.num{text-align:right}
+td{padding:4px 8px;border-bottom:1px solid #EDF1F3}
+tbody tr.sel{background:#E4F2F8;box-shadow:inset 3px 0 0 var(--flume)}
+tbody tr.pick{cursor:pointer}
+tbody tr.pick:hover{background:#F1F7FA}
+.scroll{max-height:340px;overflow:auto}
+.tag{font-size:11.5px;font-weight:600;padding:1px 6px;border-radius:9px;font-family:'Barlow Semi Condensed';letter-spacing:.03em}
+.t-pass{background:#E3F0EA;color:var(--pass)}
+.t-fail{background:#FCEAE2;color:var(--signal)}
+.t-warn{background:#FBF1DF;color:var(--warn)}
+.t-unset{background:#EDF1F3;color:var(--unset)}
+.v-fail{color:var(--signal);font-weight:600}
+.v-unset{color:var(--unset)}
+
+/* ---------- drawings ---------- */
+.draw{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dw{border:1px solid var(--rule);border-radius:var(--r);background:#fff;position:relative}
+.dw .cap{
+  position:absolute;top:6px;left:9px;font-family:'Barlow Semi Condensed';
+  font-size:12px;letter-spacing:.05em;color:var(--graphite);
+}
+canvas{display:block;width:100%}
+.strip{border:1px solid var(--rule);border-radius:var(--r);background:#fff;margin-bottom:8px;position:relative}
+.empty{padding:44px 20px;text-align:center;color:var(--graphite);font-size:14px}
+
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px 18px}
+.kv div{border-bottom:1px solid #EDF1F3;padding-bottom:3px}
+.kv .k{font-size:12px;color:var(--graphite);display:block;line-height:1.25}
+.kv .v{font-size:16px;font-weight:600}
+.kv .v small{font-size:12px;font-weight:400;color:var(--graphite)}
+
+pre{
+  background:#F4F7F8;border:1px solid var(--rule);border-radius:var(--r);padding:10px;
+  font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;line-height:1.45;
+  max-height:220px;overflow:auto;margin:0;white-space:pre;
+}
+.rowbtns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.chk{display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:3px}
+.chk input{width:auto}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:1fr}
+  .rail{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--rule)}
+  .draw{grid-template-columns:1fr}
+}
+@media print{
+  header{position:static} .rail{display:none} .shell{grid-template-columns:1fr}
+  .block{break-inside:avoid} button{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>FlumePath <span>· alignment solver</span></h1>
+  <div class="hstat">Drop<b id="hDrop">—</b></div>
+  <div class="hstat">Candidates<b id="hCount">—</b></div>
+  <div class="hstat">Selected<b id="hSel">none</b></div>
+  <div class="spacer"></div>
+  <div class="hstat" id="hRev">rev —</div>
+</header>
+
+<div class="shell">
+
+<!-- ================= RAIL ================= -->
+<aside class="rail">
+
+  <details class="grp" open><summary>Elevations &amp; site</summary><div class="body">
+    <div class="f"><label>Platform elevation<span class="u">ft</span></label><input type="number" id="i_platform" value="48" step="0.5"></div>
+    <div class="f"><label>Base / pool deck elevation<span class="u">ft</span></label><input type="number" id="i_base" value="0" step="0.5"></div>
+    <div class="f"><label>Site width available<span class="u">ft</span></label><input type="number" id="i_siteW" value="140" step="5"></div>
+    <div class="f"><label>Site depth available<span class="u">ft</span></label><input type="number" id="i_siteD" value="140" step="5"></div>
+    <div class="f"><label>Runout length<span class="u">ft</span></label><input type="number" id="i_runout" value="35" step="5"></div>
+  </div></details>
+
+  <details class="grp" open><summary>Flume section</summary><div class="body">
+    <div class="f"><label>Flume inside radius<span class="u">ft</span></label><input type="number" id="i_flumeR" value="2.0" step="0.05"></div>
+    <div class="f"><label>Wall height above invert<span class="u">ft</span></label><input type="number" id="i_wallH" value="2.5" step="0.05"></div>
+    <div class="f"><label>Sag vertical radius<span class="u">ft</span></label><input type="number" id="i_sagR" value="90" step="5"></div>
+    <div class="f"><label>Easement (spiral) length<span class="u">ft</span></label><input type="number" id="i_ease" value="25" step="5"></div>
+    <p class="hint">The easement ramps curvature from zero into each arc. It is the main lever on roll rate and lateral onset.</p>
+  </div></details>
+
+  <details class="grp" open><summary>Rider cases</summary><div class="body">
+    <div id="riderList"></div>
+    <div class="f"><label>Dispatch velocity<span class="u">ft/s</span></label><input type="number" id="i_v0" value="3" step="0.5"></div>
+    <div class="f"><label>v² drag coefficient<span class="u">1/ft</span></label><input type="number" id="i_kdrag" value="0" step="0.0005"></div>
+    <p class="hint">μ values are starting estimates for wetted gelcoat. Calibrate them against your own timing runs before you rely on the output.</p>
+  </div></details>
+
+  <details class="grp"><summary>Sweep ranges</summary><div class="body">
+    <div class="f"><label>Arc radius min<span class="u">ft</span></label><input type="number" id="i_Rmin" value="18" step="2"></div>
+    <div class="f"><label>Arc radius max<span class="u">ft</span></label><input type="number" id="i_Rmax" value="40" step="2"></div>
+    <div class="f"><label>Radius step<span class="u">ft</span></label><input type="number" id="i_Rstep" value="4" step="1"></div>
+    <div class="f"><label>Catalog radii<span class="u">ft, csv</span></label><input type="text" id="i_catalog" value="20, 24, 30, 36" style="text-align:left"></div>
+    <p class="hint">Snap-to-catalog reports how far each candidate sits from a radius you can actually buy.</p>
+  </div></details>
+
+  <details class="grp"><summary>Ranking weights</summary><div class="body">
+    <div class="f"><label>Compliance margin</label><input type="number" id="w_margin" value="40" step="5"></div>
+    <div class="f"><label>Footprint economy</label><input type="number" id="w_foot" value="25" step="5"></div>
+    <div class="f"><label>Flume length / cost</label><input type="number" id="w_len" value="25" step="5"></div>
+    <div class="f"><label>Thrill</label><input type="number" id="w_thrill" value="10" step="5"></div>
+    <p class="hint">Thrill starts low on purpose. Until you enter limits the tool has nothing to rank
+      compliance against, so it favours the tamest alignment that fits rather than the fastest.</p>
+  </div></details>
+
+  <details class="grp"><summary>Systems inputs</summary><div class="body">
+    <div class="f"><label>Riders per vehicle</label><input type="number" id="i_riders" value="1" step="1"></div>
+    <div class="f"><label>Dispatch interval<span class="u">s</span></label><input type="number" id="i_interval" value="20" step="1"></div>
+    <div class="f"><label>Design rider weight<span class="u">lb</span></label><input type="number" id="i_riderW" value="300" step="10"></div>
+    <div class="f"><label>Flume + water weight<span class="u">lb/ft</span></label><input type="number" id="i_flumeW" value="145" step="5"></div>
+    <div class="f"><label>Tower spacing<span class="u">ft</span></label><input type="number" id="i_towerSp" value="20" step="2"></div>
+    <div class="f"><label>Flow per ft of width<span class="u">gpm/ft</span></label><input type="number" id="i_flowPerFt" value="180" step="10"></div>
+    <div class="f"><label>Pump friction allowance<span class="u">ft</span></label><input type="number" id="i_pumpLoss" value="18" step="1"></div>
+    <div class="f"><label>Runout deceleration<span class="u">ft/s²</span></label><input type="number" id="i_decel" value="9" step="0.5"></div>
+  </div></details>
+
+  <div style="padding:12px 14px">
+    <button class="wide" id="btnRun">Generate candidates</button>
+    <button class="wide ghost" id="btnSave">Save project file</button>
+    <button class="wide ghost" id="btnLoad">Load project file</button>
+    <input type="file" id="fileIn" accept=".json" style="display:none">
+  </div>
+</aside>
+
+<!-- ================= SHEET ================= -->
+<main class="sheet">
+
+  <div class="notice">
+    <b>Limit values are yours to enter.</b> This tool computes ride dynamics from first principles, which is
+    deterministic and needs no standard. It does not ship ASTM threshold values. Open
+    <b>ASTM limits</b> below and type the governing numbers from your licensed copies of
+    F2376 and F2291. Any limit left blank is reported as <span class="tag t-unset">not set</span> — never as a pass.
+    Nothing here substitutes for a stamped review.
+  </div>
+
+  <!-- ASTM LIMITS -->
+  <section class="block">
+    <h2>ASTM limits <span class="sub">entered by you from F2376 / F2291 — blank means unchecked</span></h2>
+    <div class="body">
+      <table id="limTable"><thead><tr>
+        <th style="width:44%">Criterion</th><th class="num" style="width:16%">Limit</th>
+        <th style="width:12%">Unit</th><th style="width:28%">Clause reference</th>
+      </tr></thead><tbody></tbody></table>
+      <p class="hint">Reference field is free text — record the clause you pulled each number from so the
+        assumptions log carries it into your calc package.</p>
+    </div>
+  </section>
+
+  <!-- CANDIDATES -->
+  <section class="block">
+    <h2>Candidate alignments <span class="sub" id="candSub">not generated</span></h2>
+    <div class="body" style="padding:0">
+      <div class="scroll"><table id="candTable"><thead><tr>
+        <th>Family</th><th>Configuration</th><th class="num">Grade</th><th class="num">Length</th>
+        <th class="num">v max</th><th class="num">Lat g</th><th class="num">Norm g</th>
+        <th class="num">Roll</th><th class="num">Freeboard</th><th class="num">Footprint</th>
+        <th class="num">Transit</th><th>Status</th><th class="num">Score</th>
+      </tr></thead><tbody><tr><td colspan="13"><div class="empty">Set your elevations, then generate candidates.</div></td></tr></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- DRAWING -->
+  <section class="block">
+    <h2>Plan and profile <span class="sub" id="drawSub">—</span></h2>
+    <div class="body">
+      <div class="draw">
+        <div class="dw"><span class="cap">PLAN</span><canvas id="cPlan" height="330"></canvas></div>
+        <div class="dw"><span class="cap">PROFILE</span><canvas id="cProf" height="330"></canvas></div>
+      </div>
+      <p class="hint" style="margin-top:8px">Plan trace is coloured by lateral acceleration: blue is low, orange marks the peak.
+        Tick marks are 50 ft stations. Profile shows the invert centreline.</p>
+    </div>
+  </section>
+
+  <!-- STRIP CHARTS -->
+  <section class="block">
+    <h2>Ride dynamics along the alignment</h2>
+    <div class="body">
+      <div class="strip"><canvas id="cV" height="132"></canvas></div>
+      <div class="strip"><canvas id="cLat" height="132"></canvas></div>
+      <div class="strip"><canvas id="cNorm" height="132"></canvas></div>
+      <div class="strip"><canvas id="cClimb" height="132"></canvas></div>
+      <div class="strip"><canvas id="cRoll" height="132"></canvas></div>
+    </div>
+  </section>
+
+  <!-- COMPLIANCE -->
+  <section class="block">
+    <h2>Compliance ledger <span class="sub" id="ledSub">worst case across enabled rider cases</span></h2>
+    <div class="body" style="padding:0">
+      <table id="ledger"><thead><tr>
+        <th style="width:34%">Criterion</th><th class="num">Computed</th><th class="num">Limit</th>
+        <th class="num">Margin</th><th>Governing rider</th><th class="num">Station</th><th>Result</th>
+      </tr></thead><tbody><tr><td colspan="7"><div class="empty">Select a candidate.</div></td></tr></tbody></table>
+    </div>
+  </section>
+
+  <!-- SEGMENT SCHEDULE -->
+  <section class="block">
+    <h2>Segment schedule <span class="sub">tangents, easements and arcs as built</span></h2>
+    <div class="body" style="padding:0">
+      <table id="segTable"><thead><tr>
+        <th>No.</th><th>Type</th><th class="num">Length</th><th class="num">Radius</th>
+        <th class="num">Arc</th><th class="num">Start sta.</th><th class="num">End sta.</th><th>Nearest catalog R</th>
+      </tr></thead><tbody><tr><td colspan="8"><div class="empty">Select a candidate.</div></td></tr></tbody></table>
+    </div>
+  </section>
+
+  <!-- SYSTEMS -->
+  <section class="block">
+    <h2>Systems <span class="sub">throughput, water, structure, runout</span></h2>
+    <div class="body"><div class="kv" id="sysKv"><div><span class="k">—</span><span class="v">—</span></div></div></div>
+  </section>
+
+  <!-- STATION TABLE -->
+  <section class="block">
+    <h2>Station table <span class="sub" id="staSub">every 10 ft</span></h2>
+    <div class="body" style="padding:0">
+      <div class="scroll"><table id="staTable"><thead><tr>
+        <th class="num">Sta.</th><th class="num">X</th><th class="num">Y</th><th class="num">Z</th>
+        <th class="num">Grade</th><th class="num">R horiz</th><th class="num">v</th><th class="num">v</th>
+        <th class="num">Lat g</th><th class="num">Norm g</th><th class="num">Bank</th>
+        <th class="num">Climb</th><th class="num">Freeboard</th><th class="num">Roll</th>
+      </tr></thead><tbody><tr><td colspan="14"><div class="empty">Select a candidate.</div></td></tr></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- EXPORTS -->
+  <section class="block">
+    <h2>Export to SolidWorks</h2>
+    <div class="body">
+      <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:4px">
+        <div class="f" style="grid-template-columns:auto 110px;margin:0">
+          <label>Point file units</label>
+          <select id="i_units"><option value="in">inches</option><option value="ft">feet</option><option value="mm">millimetres</option></select>
+        </div>
+        <div class="f" style="grid-template-columns:auto 84px;margin:0">
+          <label>Curve control points</label>
+          <input type="number" id="i_splinePts" value="80" min="12" max="400" step="4">
+        </div>
+        <div class="f" style="grid-template-columns:auto 84px;margin:0">
+          <label>Station point every</label>
+          <input type="number" id="i_ptEvery" value="25" min="2" max="200" step="5">
+        </div>
+      </div>
+      <label class="chk" style="margin:6px 0 10px"><input type="checkbox" id="i_makePoints" checked>
+        Also build a 3D sketch of station points, so each point is visible and selectable</label>
+      <div class="rowbtns">
+        <button class="ghost" id="ex_sldcrv">Curve points (.sldcrv)</button>
+        <button class="ghost" id="ex_csv">Full station table (.csv)</button>
+        <button class="ghost" id="ex_bas">VBA module (.bas)</button>
+        <button class="ghost" id="ex_vbs">Standalone script (.vbs)</button>
+        <button class="ghost" id="ex_seg">Segment schedule (.csv)</button>
+        <button class="ghost" id="ex_log">Assumptions log (.txt)</button>
+      </div>
+      <p class="hint" style="margin-bottom:10px">
+        All three routes build the same geometry; pick whichever suits how you work.<br>
+        <b>.sldcrv</b> — no scripting. Insert &rarr; Curve &rarr; Curve Through XYZ Points, then browse to the file.
+        Set the document units to match your selection above first.<br>
+        <b>.bas</b> — a VBA module in plain text. A <i>.swp</i> is a binary VBA project container, so a text file
+        renamed to .swp will not open. Instead: Tools &rarr; Macro &rarr; New, save an empty macro, then in the VBA
+        editor use File &rarr; Import File. Run <i>BuildCurve</i>, or <i>BuildSketchSpline</i> for an editable 3D sketch.<br>
+        <b>.vbs</b> — double-click, no macro editor. Builds the curve feature using scalar API calls only.<br>
+        Exit sketch mode before running either script. If Windows blocks a downloaded script,
+        right-click &rarr; Properties &rarr; Unblock.
+      </p>
+      <pre id="exPreview">Select a candidate to preview an export.</pre>
+    </div>
+  </section>
+
+</main>
+</div>
+
+<script>
+/* ==========================================================
+   1. SOLVER CORE  (validated against closed-form solutions)
+   ========================================================== */
+const G=32.174, DEG=180/Math.PI, MPH=0.681818;
+const vsub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const vadd=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const vmul=(a,k)=>[a[0]*k,a[1]*k,a[2]*k];
+const vdot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const vcross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const vlen=a=>Math.sqrt(vdot(a,a));
+const vnorm=a=>{const L=vlen(a);return L<1e-12?[0,0,0]:vmul(a,1/L);};
+
+function buildHorizontal(segs,dsh){
+  let x=0,y=0,hdg=0,xh=0;
+  const out=[{xh:0,x,y,hdg,k:0}];
+  const sched=[];
+  for(const sg of segs){
+    const start=xh, N=Math.max(2,Math.round(sg.L/dsh)), d=sg.L/N;
+    let dHdg=0;
+    for(let i=1;i<=N;i++){
+      const t=(i-0.5)/N; let k=0;
+      if(sg.type==='arc')k=sg.dir/sg.R;
+      else if(sg.type==='in')k=sg.dir*t/sg.R;
+      else if(sg.type==='out')k=sg.dir*(1-t)/sg.R;
+      hdg+=k*d; dHdg+=k*d;
+      x+=Math.cos(hdg)*d; y+=Math.sin(hdg)*d; xh+=d;
+      out.push({xh,x,y,hdg,k});
+    }
+    sched.push({type:sg.type,L:sg.L,R:sg.R||null,dir:sg.dir||0,
+      arcDeg:Math.abs(dHdg)*DEG,start,end:xh});
+  }
+  return {pts:out,sched};
+}
+
+function applyProfile(H,drop,sagR,runout){
+  const Lh=H[H.length-1].xh;
+  const dropAt=th=>{
+    const Lsag=sagR*Math.sin(th), Ldesc=Lh-runout-Lsag;
+    return Ldesc<=1?-1:Ldesc*Math.tan(th)+sagR*(1-Math.cos(th));
+  };
+  const thCap=55/DEG;
+  let peakTh=0,peakD=-1;
+  for(let i=1;i<=240;i++){const t=thCap*i/240,d=dropAt(t); if(d>peakD){peakD=d;peakTh=t;}}
+  if(peakD<drop)return null;                     // geometry cannot absorb this drop
+  let lo=0.0005,hi=peakTh;                        // bisect the rising branch only
+  for(let k=0;k<80;k++){const mid=(lo+hi)/2; if(dropAt(mid)<drop)lo=mid; else hi=mid;}
+  const th=(lo+hi)/2, Lsag=sagR*Math.sin(th), Ldesc=Lh-runout-Lsag;
+  const zEnd=-Ldesc*Math.tan(th);
+  const pts=H.map(p=>{
+    let z;
+    if(p.xh<=Ldesc) z=-p.xh*Math.tan(th);
+    else if(p.xh<=Ldesc+Lsag){
+      const a=Math.asin(Math.max(-1,Math.min(1,Math.sin(th)-(p.xh-Ldesc)/sagR)));
+      z=zEnd-sagR*(Math.cos(a)-Math.cos(th));
+    } else z=zEnd-sagR*(1-Math.cos(th));
+    return [p.x,p.y,z];
+  });
+  return {pts,gradeDeg:th*DEG,Ldesc,Lsag,Lh};
+}
+
+const sg=(type,L,R,dir)=>({type,L,R,dir});
+const FAMILIES={
+  straight:{name:'Straight drop',
+    recipe:p=>[sg('tan',p.rampLen)],
+    label:p=>`${p.rampLen.toFixed(0)} ft straight ramp`},
+  helix:{name:'Helix',
+    recipe:p=>{const R=p.R,dir=p.handed==='L'?1:-1;
+      const sweep=p.turns*2*Math.PI, Le=Math.min(p.ease,R*sweep*0.4);
+      const arcS=Math.max(0.05,sweep-Le/R);
+      return [sg('tan',p.entryLen),sg('in',Le,R,dir),sg('arc',arcS*R,R,dir),sg('out',Le,R,dir)];},
+    label:p=>`R${p.R} ft × ${p.turns} turn ${p.handed==='L'?'LH':'RH'}`},
+  serpentine:{name:'Serpentine',
+    recipe:p=>{const R=p.R,arcRad=p.arcDeg/DEG,Le=Math.min(p.ease,R*arcRad*0.8);
+      const arcS=Math.max(0.05,arcRad-Le/R);
+      const o=[sg('tan',p.tanLen)];
+      for(let b=0;b<p.bends;b++){const d=b%2===0?1:-1;
+        o.push(sg('in',Le,R,d),sg('arc',arcS*R,R,d),sg('out',Le,R,d),sg('tan',p.tanLen));}
+      return o;},
+    label:p=>`${p.bends} × ${p.arcDeg}° bends at R${p.R} ft`},
+  doubleHelix:{name:'Double helix',
+    recipe:p=>{const R=p.R,sweep=(p.turns/2)*2*Math.PI;
+      const Le=Math.min(p.ease,R*sweep*0.4), arcS=Math.max(0.05,sweep-Le/R);
+      return [sg('tan',p.entryLen),
+        sg('in',Le,R,1),sg('arc',arcS*R,R,1),sg('out',Le,R,1),
+        sg('tan',p.tanLen),
+        sg('in',Le,R,-1),sg('arc',arcS*R,R,-1),sg('out',Le,R,-1)];},
+    label:p=>`R${p.R} ft × ${p.turns} turn S-reverse`}
+};
+
+function buildPath(key,p){
+  const fam=FAMILIES[key];
+  const segs=fam.recipe(p).concat([sg('tan',p.runout)]);
+  const H=buildHorizontal(segs,1.0);
+  const prof=applyProfile(H.pts,p.drop,p.sagR,p.runout);
+  if(!prof)return null;
+  return {pts:prof.pts,sched:H.sched,meta:{family:fam.name,key,label:fam.label(p),
+    gradeDeg:prof.gradeDeg,Lh:prof.Lh,params:{...p}}};
+}
+
+function curvatureAt(P,i,m){
+  const A=P[Math.max(0,i-m)],B=P[i],C=P[Math.min(P.length-1,i+m)];
+  const ab=vsub(B,A),bc=vsub(C,B),ac=vsub(C,A);
+  const den=vlen(ab)*vlen(bc)*vlen(ac);
+  const kappa=den<1e-12?0:2*vlen(vcross(ab,bc))/den;
+  const T=vnorm(ac);
+  let dir=vsub(vadd(A,C),vmul(B,2));
+  dir=vsub(dir,vmul(T,vdot(dir,T)));
+  return {K:vmul(vnorm(dir),kappa),T};
+}
+
+function resample(pts,ds){
+  const cum=[0];
+  for(let i=1;i<pts.length;i++)cum.push(cum[i-1]+vlen(vsub(pts[i],pts[i-1])));
+  const tot=cum[cum.length-1], n=Math.max(4,Math.round(tot/ds)), step=tot/n;
+  const out=[]; let j=0;
+  for(let i=0;i<=n;i++){
+    const t0=i*step;
+    while(j<cum.length-2&&cum[j+1]<t0)j++;
+    const s=cum[j+1]-cum[j], t=s<1e-12?0:(t0-cum[j])/s;
+    out.push(vadd(pts[j],vmul(vsub(pts[j+1],pts[j]),t)));
+  }
+  return {pts:out,ds:step};
+}
+
+function solve(rawPts,cfg){
+  const rs=resample(rawPts,cfg.ds||1.0), P=rs.pts, ds=rs.ds, n=P.length;
+  const m=Math.max(2,Math.round((cfg.stencil||5)/ds));
+  const st=[]; let v2=cfg.v0*cfg.v0, stall=null;
+  for(let i=0;i<n;i++){
+    const a=P[Math.max(0,i-1)],b=P[Math.min(n-1,i+1)];
+    const d=vsub(b,a),L=vlen(d)||1e-9;
+    const sinT=-d[2]/L, cosT=Math.sqrt(Math.max(0,1-sinT*sinT));
+    if(i>0){
+      v2+=2*ds*(G*sinT-cfg.mu*G*cosT-cfg.kDrag*v2);
+      if(v2<=0.05){v2=0.05; if(stall===null)stall=i;}
+    }
+    st.push({i,x:P[i][0],y:P[i][1],z:P[i][2],s:i*ds,v:Math.sqrt(v2),
+      slopeDeg:Math.asin(Math.max(-1,Math.min(1,sinT)))*DEG});
+  }
+  for(let i=0;i<n;i++){
+    const {K,T}=curvatureAt(P,i,m);
+    let L=vcross(T,[0,0,1]); L=vlen(L)<1e-6?[0,1,0]:vnorm(L);
+    let V=vnorm(vcross(L,T));
+    if(V[2]<0){V=vmul(V,-1);L=vmul(L,-1);}
+    const s=st[i], v2i=s.v*s.v, kL=vdot(K,L), kV=vdot(K,V);
+    s.Rh=Math.abs(kL)>1e-7?1/Math.abs(kL):Infinity;
+    s.Rv=Math.abs(kV)>1e-7?1/Math.abs(kV):Infinity;
+    s.crest=kV<0;
+    s.aLat=(v2i*kL)/G;
+    s.aNorm=(v2i*kV+G*V[2])/G;
+    s.aRes=Math.hypot(s.aLat,s.aNorm);
+    s.bankDeg=Math.atan2(s.aLat,s.aNorm)*DEG;
+  }
+  for(let i=0;i<n;i++){
+    const s=st[i], phi=Math.abs(s.bankDeg)/DEG;
+    s.climb=phi>=Math.PI/2?Infinity:cfg.flumeR*(1-Math.cos(phi));
+    s.freeboard=cfg.wallH-s.climb;
+    if(i>0){const dt=ds/Math.max(1,s.v);
+      s.rollRate=Math.abs(s.bankDeg-st[i-1].bankDeg)/dt;
+      s.jerk=Math.abs(s.aRes-st[i-1].aRes)/dt;
+    } else {s.rollRate=0;s.jerk=0;}
+  }
+  if(st[1])st[0].rollRate=st[1].rollRate;
+  const last=st[n-1];
+  let tT=0; for(let i=1;i<n;i++)tT+=ds/Math.max(0.5,(st[i].v+st[i-1].v)/2);
+  const xs=st.map(p=>p.x),ys=st.map(p=>p.y);
+  const cr=st.filter(p=>p.crest&&isFinite(p.Rv)), sa=st.filter(p=>!p.crest&&isFinite(p.Rv));
+  const at=(sel,cmp)=>st.reduce((a,b)=>cmp(sel(b),sel(a))?b:a,st[0]);
+  return {st,ds,summary:{
+    length:last.s, drop:st[0].z-last.z, vExit:last.v,
+    vMax:Math.max(...st.map(p=>p.v)), vMaxSta:at(p=>p.v,(a,b)=>a>b).s,
+    aLatMax:Math.max(...st.map(p=>Math.abs(p.aLat))), aLatSta:at(p=>Math.abs(p.aLat),(a,b)=>a>b).s,
+    aNormMax:Math.max(...st.map(p=>p.aNorm)), aNormMaxSta:at(p=>p.aNorm,(a,b)=>a>b).s,
+    aNormMin:Math.min(...st.map(p=>p.aNorm)), aNormMinSta:at(p=>p.aNorm,(a,b)=>a<b).s,
+    slopeMax:Math.max(...st.map(p=>p.slopeDeg)),
+    rollRateMax:Math.max(...st.map(p=>p.rollRate)), rollSta:at(p=>p.rollRate,(a,b)=>a>b).s,
+    jerkMax:Math.max(...st.map(p=>p.jerk)), jerkSta:at(p=>p.jerk,(a,b)=>a>b).s,
+    climbMax:Math.max(...st.map(p=>p.climb)),
+    freeboardMin:Math.min(...st.map(p=>p.freeboard)), fbSta:at(p=>p.freeboard,(a,b)=>a<b).s,
+    RhMin:Math.min(...st.map(p=>p.Rh)),
+    RvSagMin:sa.length?Math.min(...sa.map(p=>p.Rv)):Infinity,
+    RvCrestMin:cr.length?Math.min(...cr.map(p=>p.Rv)):Infinity,
+    tTransit:tT, stalled:stall!==null, stallStation:stall,
+    bboxW:Math.max(...xs)-Math.min(...xs), bboxD:Math.max(...ys)-Math.min(...ys)
+  }};
+}
+
+/* ==========================================================
+   2. LIMITS + RIDERS
+   ========================================================== */
+const LIMITS=[
+  {k:'vMax',      n:'Maximum rider velocity',            u:'ft/s', dir:'max', get:s=>s.vMax,        sta:s=>s.vMaxSta},
+  {k:'aLatMax',   n:'Peak lateral acceleration',         u:'g',    dir:'max', get:s=>s.aLatMax,     sta:s=>s.aLatSta},
+  {k:'aNormMax',  n:'Peak normal (positive) g',          u:'g',    dir:'max', get:s=>s.aNormMax,    sta:s=>s.aNormMaxSta},
+  {k:'aNormMin',  n:'Minimum normal g (airtime floor)',  u:'g',    dir:'min', get:s=>s.aNormMin,    sta:s=>s.aNormMinSta},
+  {k:'slopeMax',  n:'Maximum flume grade',               u:'deg',  dir:'max', get:s=>s.slopeMax,    sta:()=>null},
+  {k:'rollMax',   n:'Peak roll rate',                    u:'deg/s',dir:'max', get:s=>s.rollRateMax, sta:s=>s.rollSta},
+  {k:'jerkMax',   n:'Peak jerk',                         u:'g/s',  dir:'max', get:s=>s.jerkMax,     sta:s=>s.jerkSta},
+  {k:'fbMin',     n:'Minimum freeboard above climb',     u:'ft',   dir:'min', get:s=>s.freeboardMin,sta:s=>s.fbSta},
+  {k:'RhMin',     n:'Minimum horizontal radius',         u:'ft',   dir:'min', get:s=>s.RhMin,       sta:()=>null},
+  {k:'RvSagMin',  n:'Minimum sag vertical radius',       u:'ft',   dir:'min', get:s=>s.RvSagMin,    sta:()=>null},
+  {k:'RvCrestMin',n:'Minimum crest vertical radius',     u:'ft',   dir:'min', get:s=>s.RvCrestMin,  sta:()=>null},
+  {k:'vExitMax',  n:'Maximum exit velocity into runout', u:'ft/s', dir:'max', get:s=>s.vExit,       sta:()=>null},
+];
+const limitVals={}, limitRefs={};
+
+const RIDERS=[
+  {id:'tube1', n:'Single tube',   mu:0.05, on:true},
+  {id:'tube2', n:'Double tube',   mu:0.06, on:true},
+  {id:'raft',  n:'4-person raft', mu:0.07, on:false},
+  {id:'mat',   n:'Mat, head first',mu:0.09, on:true},
+  {id:'body',  n:'Body slide',    mu:0.11, on:true},
+];
+
+/* ==========================================================
+   3. STATE + INPUT PLUMBING
+   ========================================================== */
+const S={candidates:[],sel:null,rev:1};
+const $=id=>document.getElementById(id);
+const val=id=>parseFloat($(id).value);
+const fmt=(x,d=2)=>!isFinite(x)?'∞':(Math.abs(x)>=1e6?'—':x.toFixed(d));
+
+function cfgBase(mu){return{
+  ds:1.0, v0:val('i_v0'), mu, kDrag:val('i_kdrag'),
+  flumeR:val('i_flumeR'), wallH:val('i_wallH'), stencil:6
+};}
+
+function buildRiderUI(){
+  $('riderList').innerHTML=RIDERS.map(r=>`
+    <div class="f" style="grid-template-columns:1fr 62px">
+      <label class="chk"><input type="checkbox" data-r="${r.id}" ${r.on?'checked':''}> ${r.n}
+        <span class="u" style="margin-left:auto">μ</span></label>
+      <input type="number" step="0.005" data-mu="${r.id}" value="${r.mu}">
+    </div>`).join('');
+  $('riderList').querySelectorAll('[data-r]').forEach(c=>
+    c.onchange=e=>{RIDERS.find(r=>r.id===e.target.dataset.r).on=e.target.checked;});
+  $('riderList').querySelectorAll('[data-mu]').forEach(c=>
+    c.onchange=e=>{RIDERS.find(r=>r.id===e.target.dataset.mu).mu=parseFloat(e.target.value);});
+}
+
+function buildLimitUI(){
+  const tb=$('limTable').querySelector('tbody');
+  tb.innerHTML=LIMITS.map(l=>`<tr>
+    <td>${l.n}</td>
+    <td class="num"><input type="number" class="unset" step="0.05" data-lim="${l.k}" placeholder="not set"></td>
+    <td style="color:var(--graphite);font-size:12.5px">${l.u}</td>
+    <td><input type="text" data-ref="${l.k}" placeholder="e.g. F2291 §x.x" style="text-align:left"></td>
+  </tr>`).join('');
+  tb.querySelectorAll('[data-lim]').forEach(inp=>inp.oninput=e=>{
+    const v=parseFloat(e.target.value);
+    if(isFinite(v)){limitVals[e.target.dataset.lim]=v; e.target.classList.remove('unset');}
+    else {delete limitVals[e.target.dataset.lim]; e.target.classList.add('unset');}
+    if(S.candidates.length)rankAndRender();
+    if(S.sel!==null)renderSelected();
+    updateCandSub();
+  });
+  tb.querySelectorAll('[data-ref]').forEach(inp=>inp.oninput=e=>{limitRefs[e.target.dataset.ref]=e.target.value;});
+}
+
+/* ==========================================================
+   4. CANDIDATE GENERATION
+   ========================================================== */
+function activeRiders(){const a=RIDERS.filter(r=>r.on);return a.length?a:[RIDERS[0]];}
+
+function evaluate(path,ds){
+  // solve for every enabled rider, keep the worst case per criterion
+  const runs=activeRiders().map(r=>({rider:r,res:solve(path.pts,{...cfgBase(r.mu),ds:ds||1.0})}));
+  const worst={}; const gov={};
+  for(const L of LIMITS){
+    let best=null,bestR=null,bestS=null;
+    for(const {rider,res} of runs){
+      const v=L.get(res.summary), sta=L.sta(res.summary);
+      if(best===null||(L.dir==='max'?v>best:v<best)){best=v;bestR=rider.n;bestS=sta;}
+    }
+    worst[L.k]=best; gov[L.k]={rider:bestR,sta:bestS};
+  }
+  // representative run = fastest rider, used for drawings and station table
+  const rep=runs.reduce((a,b)=>b.res.summary.vMax>a.res.summary.vMax?b:a);
+  return {runs,worst,gov,rep,stalledAny:runs.some(r=>r.res.summary.stalled)};
+}
+
+function checkOf(k,v){
+  const lim=limitVals[k];
+  if(lim===undefined)return 'unset';
+  const L=LIMITS.find(l=>l.k===k);
+  if(!isFinite(v))return 'pass';
+  return (L.dir==='max'? v<=lim : v>=lim)?'pass':'fail';
+}
+
+function marginScore(worst){
+  let n=0,acc=0;
+  for(const L of LIMITS){
+    const lim=limitVals[L.k]; if(lim===undefined)continue;
+    const v=worst[L.k]; if(!isFinite(v))continue;
+    let m = L.dir==='max' ? (lim-v)/Math.max(1e-6,Math.abs(lim))
+                          : (v-lim)/Math.max(1e-6,Math.abs(lim));
+    acc+=Math.max(-1,Math.min(1,m)); n++;
+  }
+  return n? acc/n : null;
+}
+
+function generate(){
+  const platform=val('i_platform'), base=val('i_base');
+  const drop=platform-base;
+  if(!(drop>1)){alert('Platform elevation must sit at least 1 ft above the base elevation.');return;}
+  const siteW=val('i_siteW'), siteD=val('i_siteD');
+  const common={drop, runout:val('i_runout'), sagR:val('i_sagR'), ease:val('i_ease')};
+  const Rmin=val('i_Rmin'),Rmax=val('i_Rmax'),Rstep=Math.max(1,val('i_Rstep'));
+  const out=[];
+  const push=(key,p)=>{
+    const path=buildPath(key,{...common,...p});
+    if(!path)return;
+    const s0=path.pts, xs=s0.map(q=>q[0]), ys=s0.map(q=>q[1]);
+    const w=Math.max(...xs)-Math.min(...xs), d=Math.max(...ys)-Math.min(...ys);
+    if(w>siteW||d>siteD)return;                       // footprint gate
+    const ev=evaluate(path,2.0);            // coarse pass for the sweep
+    out.push({path,...ev,fine:false});
+  };
+  // straight ramps
+  for(let L=60;L<=Math.min(siteW,420);L+=20) push('straight',{rampLen:L});
+  // helices
+  for(let R=Rmin;R<=Rmax;R+=Rstep)
+    for(const t of [1,1.25,1.5,1.75,2,2.5,3])
+      for(const h of ['L','R']) push('helix',{R,turns:t,handed:h,entryLen:20});
+  // serpentines
+  for(let R=Rmin;R<=Rmax;R+=Rstep)
+    for(const b of [2,3,4,5,6])
+      for(const a of [90,120,150,180]) push('serpentine',{R,bends:b,arcDeg:a,tanLen:16});
+  // double helices
+  for(let R=Rmin;R<=Rmax;R+=Rstep)
+    for(const t of [2,3,4]) push('doubleHelix',{R,turns:t,entryLen:20,tanLen:28});
+
+  S.candidates=out; S.rev++;
+  rankAndRender();
+  $('hCount').textContent=out.length;
+  updateCandSub();
+  if(out.length===0){
+    $('candTable').querySelector('tbody').innerHTML=
+      `<tr><td colspan="13"><div class="empty">No alignment absorbs ${drop.toFixed(1)} ft of drop inside this footprint.
+       Widen the site, shorten the runout, or open up the radius range.</div></td></tr>`;
+  }
+}
+
+function updateCandSub(){
+  const n=S.candidates.length;
+  if(!n){$('candSub').textContent='not generated';return;}
+  const nSet=LIMITS.filter(l=>limitVals[l.k]!==undefined).length;
+  $('candSub').textContent=`${n} feasible within the ${val('i_siteW')} × ${val('i_siteD')} ft envelope`
+    +(nSet===0?' — ranked without compliance input, no limits entered yet'
+             :` — checked against ${nSet} of ${LIMITS.length} limits`);
+}
+
+function scoreOf(c){
+  const s=c.rep.res.summary;
+  const wM=val('w_margin'),wF=val('w_foot'),wL=val('w_len'),wT=val('w_thrill');
+  const tot=Math.max(1e-6,wM+wF+wL+wT);
+  const m=marginScore(c.worst);
+  const nm=m===null?0.5:(m+1)/2;
+  const foot=1-Math.min(1,(s.bboxW*s.bboxD)/(val('i_siteW')*val('i_siteD')));
+  const len=1-Math.min(1,s.length/900);
+  const thrill=Math.min(1,(s.vMax/60)*0.6+(s.aLatMax/2.5)*0.4);
+  let sc=(wM*nm+wF*foot+wL*len+wT*thrill)/tot*100;
+  if(c.stalledAny)sc*=0.15;
+  const anyFail=LIMITS.some(L=>checkOf(L.k,c.worst[L.k])==='fail');
+  if(anyFail)sc*=0.4;
+  return sc;
+}
+
+function statusOf(c){
+  if(c.stalledAny)return ['t-fail','stalls'];
+  const fails=LIMITS.filter(L=>checkOf(L.k,c.worst[L.k])==='fail').length;
+  if(fails)return ['t-fail',`${fails} over limit`];
+  const set=LIMITS.filter(L=>limitVals[L.k]!==undefined).length;
+  if(set===0)return ['t-unset','no limits set'];
+  if(set<LIMITS.length)return ['t-warn',`${set}/${LIMITS.length} checked`];
+  return ['t-pass','within limits'];
+}
+
+function rankAndRender(){
+  const rows=S.candidates.map(c=>({c,score:scoreOf(c)})).sort((a,b)=>b.score-a.score);
+  const tb=$('candTable').querySelector('tbody');
+  if(!rows.length)return;
+  tb.innerHTML=rows.slice(0,120).map(({c,score},i)=>{
+    const s=c.rep.res.summary, [cls,txt]=statusOf(c);
+    const bad=k=>checkOf(k,c.worst[k])==='fail'?' class="num v-fail"':' class="num"';
+    return `<tr class="pick" data-i="${S.candidates.indexOf(c)}">
+      <td>${c.path.meta.family}</td><td>${c.path.meta.label}</td>
+      <td class="num">${fmt(c.path.meta.gradeDeg,1)}°</td>
+      <td class="num">${fmt(s.length,0)}</td>
+      <td${bad('vMax')}>${fmt(s.vMax*MPH,1)} mph</td>
+      <td${bad('aLatMax')}>${fmt(c.worst.aLatMax,2)}</td>
+      <td${bad('aNormMin')}>${fmt(c.worst.aNormMin,2)}</td>
+      <td${bad('rollMax')}>${fmt(c.worst.rollMax,0)}</td>
+      <td${bad('fbMin')}>${fmt(c.worst.fbMin,2)}</td>
+      <td class="num">${fmt(s.bboxW,0)}×${fmt(s.bboxD,0)}</td>
+      <td class="num">${fmt(s.tTransit,1)} s</td>
+      <td><span class="tag ${cls}">${txt}</span></td>
+      <td class="num">${score.toFixed(0)}</td></tr>`;
+  }).join('');
+  tb.querySelectorAll('tr.pick').forEach(tr=>tr.onclick=()=>select(+tr.dataset.i));
+  if(S.sel===null&&rows.length)select(S.candidates.indexOf(rows[0].c));
+  else if(S.sel!==null)markSel();
+}
+
+function markSel(){
+  document.querySelectorAll('#candTable tbody tr').forEach(tr=>
+    tr.classList.toggle('sel',+tr.dataset.i===S.sel));
+}
+
+function select(i){
+  S.sel=i;
+  const c=S.candidates[i];
+  if(c&&!c.fine){                            // refine only what the engineer is looking at
+    Object.assign(c,evaluate(c.path,1.0),{fine:true});
+  }
+  markSel();renderSelected();
+}
+
+/* ==========================================================
+   5. DRAWING
+   ========================================================== */
+function fitCanvas(cv){
+  if(!cv.dataset.h) cv.dataset.h=cv.getAttribute('height');  // logical height, captured once
+  const h=+cv.dataset.h, dpr=window.devicePixelRatio||1;
+  const w=Math.max(120,cv.clientWidth||cv.parentElement.clientWidth);
+  cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+  cv.style.height=h+'px';
+  const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+  return {g,w,h};
+}
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+function lerpColor(t){ // flume blue -> signal orange
+  const a=[15,127,168], b=[216,81,29];
+  return `rgb(${a.map((v,i)=>Math.round(v+(b[i]-v)*t)).join(',')})`;
+}
+
+function drawPlan(cv,st){
+  const {g,w,h}=fitCanvas(cv);
+  g.clearRect(0,0,w,h);
+  const pad=26;
+  const xs=st.map(p=>p.x),ys=st.map(p=>p.y);
+  const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+  const sc=Math.min((w-2*pad)/Math.max(1,x1-x0),(h-2*pad)/Math.max(1,y1-y0));
+  const cx=w/2-((x0+x1)/2)*sc, cy=h/2+((y0+y1)/2)*sc;
+  const X=p=>cx+p.x*sc, Y=p=>cy-p.y*sc;
+  // grid
+  g.strokeStyle='#EAEFF2';g.lineWidth=1;
+  for(let gx=Math.ceil(x0/25)*25;gx<=x1;gx+=25){g.beginPath();g.moveTo(cx+gx*sc,0);g.lineTo(cx+gx*sc,h);g.stroke();}
+  for(let gy=Math.ceil(y0/25)*25;gy<=y1;gy+=25){g.beginPath();g.moveTo(0,cy-gy*sc);g.lineTo(w,cy-gy*sc);g.stroke();}
+  // trace coloured by lateral g
+  const aMax=Math.max(0.01,Math.max(...st.map(p=>Math.abs(p.aLat))));
+  g.lineWidth=4.5;g.lineCap='round';
+  for(let i=1;i<st.length;i++){
+    g.strokeStyle=lerpColor(Math.min(1,Math.abs(st[i].aLat)/aMax));
+    g.beginPath();g.moveTo(X(st[i-1]),Y(st[i-1]));g.lineTo(X(st[i]),Y(st[i]));g.stroke();
+  }
+  // 50 ft station ticks
+  g.fillStyle=css('--ink');g.font='10px Barlow';
+  let nextTick=50;
+  for(let i=0;i<st.length;i++){
+    if(st[i].s<nextTick)continue;
+    nextTick+=50;
+    g.beginPath();g.arc(X(st[i]),Y(st[i]),2.6,0,7);g.fill();
+    g.fillText(Math.round(st[i].s),X(st[i])+5,Y(st[i])-4);
+  }
+  // start / end
+  g.fillStyle=css('--ink');
+  g.beginPath();g.arc(X(st[0]),Y(st[0]),5,0,7);g.fill();
+  g.fillText('start',X(st[0])+8,Y(st[0])+4);
+  const e=st[st.length-1];
+  g.fillStyle=css('--flume-dk');
+  g.beginPath();g.arc(X(e),Y(e),5,0,7);g.fill();
+  g.fillText('exit',X(e)+8,Y(e)+4);
+  // scale bar
+  g.strokeStyle=css('--graphite');g.lineWidth=1.5;
+  g.beginPath();g.moveTo(pad,h-12);g.lineTo(pad+25*sc,h-12);g.stroke();
+  g.fillStyle=css('--graphite');g.fillText('25 ft',pad+25*sc+5,h-9);
+}
+
+function drawProfile(cv,st){
+  const {g,w,h}=fitCanvas(cv);
+  g.clearRect(0,0,w,h);
+  const pad=30;
+  const s1=st[st.length-1].s;
+  const z0=Math.min(...st.map(p=>p.z)),z1=Math.max(...st.map(p=>p.z));
+  const sx=(w-2*pad)/Math.max(1,s1), sz=(h-2*pad)/Math.max(1,z1-z0);
+  const X=p=>pad+p.s*sx, Y=p=>h-pad-(p.z-z0)*sz;
+  g.strokeStyle='#EAEFF2';g.lineWidth=1;
+  for(let gz=Math.ceil(z0/10)*10;gz<=z1;gz+=10){
+    const y=h-pad-(gz-z0)*sz;
+    g.beginPath();g.moveTo(pad,y);g.lineTo(w-pad,y);g.stroke();
+    g.fillStyle=css('--graphite');g.font='10px Barlow';
+    g.fillText((gz-z0).toFixed(0)+"'",4,y+3);
+  }
+  g.strokeStyle=css('--flume');g.lineWidth=3;g.beginPath();
+  st.forEach((p,i)=>i?g.lineTo(X(p),Y(p)):g.moveTo(X(p),Y(p)));g.stroke();
+  // grade annotation
+  g.fillStyle=css('--ink');g.font='11px Barlow';
+  g.fillText(`drop ${(st[0].z-st[st.length-1].z).toFixed(1)} ft over ${s1.toFixed(0)} ft of flume`,pad,16);
+}
+
+function strip(cv,st,key,title,unit,opts={}){
+  const {g,w,h}=fitCanvas(cv);
+  g.clearRect(0,0,w,h);
+  const pad=34, s1=st[st.length-1].s;
+  const vals=st.map(p=>opts.abs?Math.abs(p[key]):p[key]).map(v=>isFinite(v)?v:0);
+  let lo=Math.min(...vals,opts.floor??Infinity), hi=Math.max(...vals,opts.ceil??-Infinity);
+  const lim=opts.limit;
+  if(lim!==undefined&&isFinite(lim)){lo=Math.min(lo,lim);hi=Math.max(hi,lim);}
+  if(hi-lo<1e-6){hi=lo+1;}
+  const m=(hi-lo)*0.12; lo-=m; hi+=m;
+  const X=s=>pad+s/Math.max(1,s1)*(w-pad-10);
+  const Y=v=>h-16-(v-lo)/(hi-lo)*(h-30);
+  // zero line
+  if(lo<0&&hi>0){g.strokeStyle='#D9E2E7';g.lineWidth=1;g.beginPath();g.moveTo(pad,Y(0));g.lineTo(w-10,Y(0));g.stroke();}
+  // limit band
+  if(lim!==undefined&&isFinite(lim)){
+    g.fillStyle='rgba(216,81,29,.07)';
+    if(opts.dir==='min')g.fillRect(pad,Y(lo),w-pad-10,Y(lim)-Y(lo));
+    else g.fillRect(pad,Y(hi),w-pad-10,Y(lim)-Y(hi));
+    g.strokeStyle=css('--signal');g.lineWidth=1;g.setLineDash([4,3]);
+    g.beginPath();g.moveTo(pad,Y(lim));g.lineTo(w-10,Y(lim));g.stroke();g.setLineDash([]);
+  }
+  // trace
+  g.strokeStyle=css('--flume');g.lineWidth=1.9;g.beginPath();
+  st.forEach((p,i)=>{const v=opts.abs?Math.abs(p[key]):p[key];
+    const y=Y(isFinite(v)?v:0); i?g.lineTo(X(p.s),y):g.moveTo(X(p.s),y);});
+  g.stroke();
+  // exceedance overlay
+  if(lim!==undefined&&isFinite(lim)){
+    g.strokeStyle=css('--signal');g.lineWidth=2.6;
+    let on=false;
+    st.forEach(p=>{const v=opts.abs?Math.abs(p[key]):p[key];
+      const bad=opts.dir==='min'?v<lim:v>lim;
+      if(bad&&!on){g.beginPath();g.moveTo(X(p.s),Y(v));on=true;}
+      else if(bad){g.lineTo(X(p.s),Y(v));}
+      else if(on){g.stroke();on=false;}});
+    if(on)g.stroke();
+  }
+  // labels
+  g.fillStyle=css('--ink');g.font='600 11.5px Barlow Semi Condensed';
+  g.fillText(title,pad,12);
+  g.fillStyle=css('--graphite');g.font='10px Barlow';
+  g.fillText(hi.toFixed(2),3,14); g.fillText(lo.toFixed(2),3,h-18);
+  g.fillText(unit,pad+g.measureText(title).width+38,12);
+  g.fillText(`station ${s1.toFixed(0)} ft`,w-78,h-4);
+}
+
+/* ==========================================================
+   6. RENDER SELECTED
+   ========================================================== */
+function renderSelected(){
+  if(S.sel===null||!S.candidates[S.sel])return;
+  const c=S.candidates[S.sel], st=c.rep.res.st, s=c.rep.res.summary;
+  $('hSel').textContent=`${c.path.meta.family} · ${c.path.meta.label}`;
+  $('drawSub').textContent=`${c.path.meta.family} — ${c.path.meta.label} · governing rider trace: ${c.rep.rider.n}`;
+  $('ledSub').textContent=`worst case across ${activeRiders().length} enabled rider case${activeRiders().length>1?'s':''}`;
+
+  drawPlan($('cPlan'),st);
+  drawProfile($('cProf'),st);
+  strip($('cV'),st,'v','Velocity','ft/s',{limit:limitVals.vMax,dir:'max',floor:0});
+  strip($('cLat'),st,'aLat','Lateral acceleration','g',{abs:true,limit:limitVals.aLatMax,dir:'max',floor:0});
+  strip($('cNorm'),st,'aNorm','Normal acceleration','g',{limit:limitVals.aNormMin,dir:'min'});
+  strip($('cClimb'),st,'freeboard','Freeboard remaining','ft',{limit:limitVals.fbMin,dir:'min'});
+  strip($('cRoll'),st,'rollRate','Roll rate','deg/s',{limit:limitVals.rollMax,dir:'max',floor:0});
+
+  renderLedger(c); renderSegments(c); renderSystems(c); renderStations(st);
+  $('hRev').textContent='rev '+S.rev;
+  previewExport();
+}
+
+function renderLedger(c){
+  const tb=$('ledger').querySelector('tbody');
+  let rows=LIMITS.map(L=>{
+    const v=c.worst[L.k], lim=limitVals[L.k], r=checkOf(L.k,v), gv=c.gov[L.k];
+    let marg='—';
+    if(lim!==undefined&&isFinite(v)) marg=(L.dir==='max'?lim-v:v-lim).toFixed(2);
+    const tag=r==='pass'?'<span class="tag t-pass">within</span>'
+             :r==='fail'?'<span class="tag t-fail">exceeded</span>'
+             :'<span class="tag t-unset">not set</span>';
+    return `<tr>
+      <td>${L.n}</td>
+      <td class="num ${r==='fail'?'v-fail':''}">${fmt(v,2)} <small style="color:var(--graphite)">${L.u}</small></td>
+      <td class="num ${lim===undefined?'v-unset':''}">${lim===undefined?'not set':lim.toFixed(2)}</td>
+      <td class="num">${marg}</td>
+      <td style="color:var(--graphite)">${gv.rider||'—'}</td>
+      <td class="num">${gv.sta==null?'—':gv.sta.toFixed(0)}</td>
+      <td>${tag}</td></tr>`;
+  }).join('');
+  if(c.stalledAny){
+    const bad=c.runs.filter(r=>r.res.summary.stalled).map(r=>r.rider.n).join(', ');
+    rows=`<tr><td>Rider completes the course</td><td class="num v-fail">stalls</td><td class="num">—</td>
+      <td class="num">—</td><td style="color:var(--graphite)">${bad}</td>
+      <td class="num">${c.runs.find(r=>r.res.summary.stalled).res.summary.stallStation}</td>
+      <td><span class="tag t-fail">exceeded</span></td></tr>`+rows;
+  }
+  tb.innerHTML=rows;
+}
+
+function catalogRadii(){
+  return $('i_catalog').value.split(',').map(s=>parseFloat(s.trim())).filter(isFinite);
+}
+function renderSegments(c){
+  const cat=catalogRadii();
+  const tb=$('segTable').querySelector('tbody');
+  tb.innerHTML=c.path.sched.map((g,i)=>{
+    const nm={tan:'Tangent',in:'Easement in',out:'Easement out',arc:'Circular arc'}[g.type];
+    let near='—';
+    if(g.R&&cat.length){
+      const b=cat.reduce((a,r)=>Math.abs(r-g.R)<Math.abs(a-g.R)?r:a);
+      const d=g.R-b;
+      near=`R${b} <span style="color:${Math.abs(d)<0.75?'var(--pass)':'var(--warn)'}">(${d>=0?'+':''}${d.toFixed(1)} ft)</span>`;
+    }
+    return `<tr><td>${i+1}</td><td>${nm}${g.dir?(g.dir>0?' L':' R'):''}</td>
+      <td class="num">${g.L.toFixed(1)}</td><td class="num">${g.R?g.R.toFixed(1):'—'}</td>
+      <td class="num">${g.arcDeg>0.1?g.arcDeg.toFixed(1)+'°':'—'}</td>
+      <td class="num">${g.start.toFixed(1)}</td><td class="num">${g.end.toFixed(1)}</td>
+      <td>${near}</td></tr>`;
+  }).join('');
+}
+
+function renderSystems(c){
+  const s=c.rep.res.summary;
+  const riders=val('i_riders'), iv=Math.max(1,val('i_interval'));
+  const thrc=3600/iv*riders;
+  const onSlide=Math.ceil(s.tTransit/iv);
+  const width=val('i_flumeR')*2;
+  const gpm=val('i_flowPerFt')*width;
+  const head=s.drop+val('i_pumpLoss');
+  const whp=gpm*head*8.34/33000;
+  const sp=Math.max(4,val('i_towerSp'));
+  const towers=Math.ceil(s.length/sp);
+  const wDead=val('i_flumeW')*sp;
+  const wLive=val('i_riderW')*Math.max(1,s.aNormMax);
+  const Rv=wDead+wLive;
+  const Rl=val('i_riderW')*s.aLatMax;
+  const decel=Math.max(0.5,val('i_decel'));
+  const runoutReq=(s.vExit*s.vExit-9)/(2*decel);
+  const runoutHave=val('i_runout');
+  const cell=(k,v,note)=>`<div><span class="k">${k}</span><span class="v">${v} ${note?`<small>${note}</small>`:''}</span></div>`;
+  $('sysKv').innerHTML=[
+    cell('Theoretical hourly capacity',thrc.toFixed(0),'riders/h'),
+    cell('Riders on slide at once',onSlide,''),
+    cell('Transit time',s.tTransit.toFixed(1),'s'),
+    cell('Minimum headway',Math.max(iv,s.tTransit/Math.max(1,onSlide)).toFixed(1),'s'),
+    cell('Flume flow demand',gpm.toFixed(0),'gpm'),
+    cell('Static + friction head',head.toFixed(1),'ft'),
+    cell('Water horsepower',whp.toFixed(1),'whp'),
+    cell('Support bents',towers,`at ${sp} ft`),
+    cell('Vertical reaction / bent',Rv.toFixed(0),'lb'),
+    cell('Lateral reaction / bent',Rl.toFixed(0),'lb'),
+    cell('Runout required',runoutReq.toFixed(1),'ft'),
+    cell('Runout provided',runoutHave.toFixed(1),
+      runoutHave>=runoutReq?'<span style="color:var(--pass)">adequate</span>':'<span style="color:var(--signal)">short</span>'),
+    cell('Exit velocity',(s.vExit*MPH).toFixed(1),'mph'),
+    cell('Fibreglass surface',(s.length*width*1.6).toFixed(0),'ft²'),
+  ].join('');
+}
+
+function renderStations(st){
+  const tb=$('staTable').querySelector('tbody');
+  const rows=[]; let nextSta=0;
+  for(const p of st){ if(p.s>=nextSta){rows.push(p); nextSta+=10;} }
+  tb.innerHTML=rows.map(p=>`<tr>
+    <td class="num">${p.s.toFixed(0)}</td><td class="num">${p.x.toFixed(1)}</td>
+    <td class="num">${p.y.toFixed(1)}</td><td class="num">${p.z.toFixed(1)}</td>
+    <td class="num">${p.slopeDeg.toFixed(1)}°</td><td class="num">${fmt(p.Rh,0)}</td>
+    <td class="num">${p.v.toFixed(1)}</td><td class="num">${(p.v*MPH).toFixed(1)}</td>
+    <td class="num">${p.aLat.toFixed(2)}</td><td class="num">${p.aNorm.toFixed(2)}</td>
+    <td class="num">${p.bankDeg.toFixed(1)}°</td><td class="num">${fmt(p.climb,2)}</td>
+    <td class="num">${fmt(p.freeboard,2)}</td><td class="num">${p.rollRate.toFixed(0)}</td></tr>`).join('');
+  $('staSub').textContent=`every 10 ft — ${rows.length} stations, ${st[st.length-1].s.toFixed(0)} ft total`;
+}
+
+/* ==========================================================
+   7. EXPORTS
+   ========================================================== */
+const UCONV={ft:1,in:12,mm:304.8};
+function dl(name,text,mime='text/plain'){
+  const b=new Blob([text],{type:mime}),u=URL.createObjectURL(b);
+  const a=document.createElement('a');a.href=u;a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(u),1500);
+}
+function curName(ext){
+  const c=S.candidates[S.sel];
+  return `flume_${c.path.meta.key}_${c.path.meta.label.replace(/[^\x20-\x7e]/g,'').replace(/[^\w]+/g,'_').replace(/^_|_$/g,'')}.${ext}`;
+}
+function sldcrv(){
+  const c=S.candidates[S.sel], k=UCONV[$('i_units').value];
+  return c.rep.res.st.map(p=>`${(p.x*k).toFixed(4)}\t${(p.y*k).toFixed(4)}\t${(p.z*k).toFixed(4)}`).join('\n');
+}
+function csvFull(){
+  const c=S.candidates[S.sel];
+  const h='station_ft,x_ft,y_ft,z_ft,grade_deg,R_horiz_ft,R_vert_ft,v_fps,v_mph,lat_g,norm_g,bank_deg,climb_ft,freeboard_ft,roll_deg_s,jerk_g_s';
+  return h+'\n'+c.rep.res.st.map(p=>[p.s,p.x,p.y,p.z,p.slopeDeg,
+    isFinite(p.Rh)?p.Rh:'',isFinite(p.Rv)?p.Rv:'',p.v,p.v*MPH,p.aLat,p.aNorm,p.bankDeg,
+    isFinite(p.climb)?p.climb:'',isFinite(p.freeboard)?p.freeboard:'',p.rollRate,p.jerk]
+    .map(v=>typeof v==='number'?v.toFixed(4):v).join(',')).join('\n');
+}
+function segCsv(){
+  const c=S.candidates[S.sel];
+  return 'no,type,length_ft,radius_ft,arc_deg,start_sta_ft,end_sta_ft\n'+
+    c.path.sched.map((g,i)=>[i+1,g.type,g.L.toFixed(2),g.R?g.R.toFixed(2):'',
+      g.arcDeg.toFixed(2),g.start.toFixed(2),g.end.toFixed(2)].join(',')).join('\n');
+}
+function splinePoints(){
+  const c=S.candidates[S.sel], st=c.rep.res.st;
+  const want=Math.max(12,Math.min(400,val('i_splinePts')||80));
+  const stride=Math.max(1,Math.floor(st.length/want));
+  let pts=st.filter((_,i)=>i%stride===0);
+  if(pts[pts.length-1]!==st[st.length-1])pts.push(st[st.length-1]);
+  // drop coincident points: a repeated coordinate kills curve and spline creation
+  const out=[pts[0]];
+  for(let i=1;i<pts.length;i++){
+    const a=out[out.length-1],b=pts[i];
+    if(Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z)>1e-4)out.push(b);
+  }
+  return out;
+}
+const ascii=t=>t.replace(/[\u00d7]/g,'x').replace(/[\u2018\u2019]/g,"'")
+  .replace(/[\u201c\u201d]/g,'"').replace(/[\u2013\u2014]/g,'-')
+  .replace(/\u00b0/g,' deg').replace(/[^\x20-\x7e\r\n\t]/g,'');   // keep line breaks
+function macroHeader(){
+  const c=S.candidates[S.sel], s=c.rep.res.summary;
+  return [`FlumePath sweep path`,
+    ascii(`${c.path.meta.family} - ${c.path.meta.label}`),
+    `drop ${s.drop.toFixed(2)} ft, flume length ${s.length.toFixed(1)} ft, grade ${c.path.meta.gradeDeg.toFixed(2)} deg`,
+    `Coordinates are metres: the SolidWorks API takes metres whatever the document units.`];
+}
+const M2=0.3048;
+function markerPoints(){
+  const st=S.candidates[S.sel].rep.res.st;
+  const every=Math.max(2,val('i_ptEvery')||25);
+  const out=[]; let next=0;
+  for(const p of st){ if(p.s>=next){out.push(p); next+=every;} }
+  if(out[out.length-1]!==st[st.length-1])out.push(st[st.length-1]);
+  return out;
+}
+function sketchPointCalls(indent,pts){
+  return pts.map(p=>`${indent}swModel.SketchManager.CreatePoint ${(p.x*M2).toFixed(6)}, ${(p.y*M2).toFixed(6)}, ${(p.z*M2).toFixed(6)}`).join('\n');
+}
+function wantPoints(){return $('i_makePoints').checked;}
+function curvePointCalls(indent,pts){
+  return pts.map(p=>`${indent}swModel.InsertCurveFilePoint ${(p.x*M2).toFixed(6)}, ${(p.y*M2).toFixed(6)}, ${(p.z*M2).toFixed(6)}`).join('\n');
+}
+function basModule(){
+  const pts=splinePoints();
+  const arr=pts.map((p,i)=>
+    `    p(${i*3}) = ${(p.x*M2).toFixed(6)}: p(${i*3+1}) = ${(p.y*M2).toFixed(6)}: p(${i*3+2}) = ${(p.z*M2).toFixed(6)}`).join('\n');
+  return `Attribute VB_Name = "FlumePath"
+' ${macroHeader().join("\n' ")}
+'
+' BuildCurve        - Curve Through XYZ Points feature. Sweep along this.
+' BuildSketchSpline - editable 3D sketch spline instead.
+' Success is judged by whether a feature actually appeared, not by return
+' values, because the InsertCurveFile* methods do not report status uniformly.
+Option Explicit
+
+Dim swApp As Object
+Dim swModel As Object
+
+Private Function GetPart() As Object
+    Set swApp = Application.SldWorks
+    Set GetPart = swApp.ActiveDoc
+    If GetPart Is Nothing Then
+        MsgBox "Open a part document first, then run this macro."
+        Exit Function
+    End If
+    If GetPart.GetType <> 1 Then
+        MsgBox "This macro needs a part document, not a drawing or assembly."
+        Set GetPart = Nothing
+    End If
+End Function
+
+Private Function FeatCount(m As Object) As Long
+    FeatCount = -1
+    On Error Resume Next
+    FeatCount = m.GetFeatureCount
+    On Error GoTo 0
+End Function
+
+Sub main()
+    BuildCurve
+${wantPoints()?'    BuildPoints':"    ' BuildPoints   ' uncomment to also drop station points"}
+End Sub
+
+' Station points as a 3D sketch. Each one is visible and selectable.
+Sub BuildPoints()
+    Dim before As Long, after As Long
+    Set swModel = GetPart()
+    If swModel Is Nothing Then Exit Sub
+    If Not swModel.SketchManager.ActiveSketch Is Nothing Then
+        MsgBox "A sketch is open. Exit sketch mode and run again."
+        Exit Sub
+    End If
+    before = FeatCount(swModel)
+
+    On Error Resume Next
+    swModel.SketchManager.Insert3DSketch True
+    swModel.SetAddToDB True          ' exact coordinates, no snapping or inferencing
+
+${sketchPointCalls('    ',markerPoints())}
+
+    swModel.SetAddToDB False
+    swModel.SketchManager.Insert3DSketch True
+    On Error GoTo 0
+
+    after = FeatCount(swModel)
+    swModel.ViewZoomtofit2
+    If after > before Or before = -1 Then
+        MsgBox "3D sketch added with ${markerPoints().length} station points, one every ${val('i_ptEvery')} ft."
+    Else
+        MsgBox "No sketch was added. SetAddToDB may have been left on; save and reopen the part if entities misbehave."
+    End If
+End Sub
+
+Sub BuildCurve()
+    Dim before As Long, after As Long
+    Set swModel = GetPart()
+    If swModel Is Nothing Then Exit Sub
+
+    If Not swModel.SketchManager.ActiveSketch Is Nothing Then
+        MsgBox "A sketch is open. Exit sketch mode and run again."
+        Exit Sub
+    End If
+    swModel.ClearSelection2 True
+    before = FeatCount(swModel)
+
+    On Error Resume Next
+    swModel.InsertCurveFileBegin
+
+${curvePointCalls('    ',pts)}
+
+    swModel.InsertCurveFileEnd
+    Dim curveErrNum As Long, curveErrDesc As String
+    curveErrNum = Err.Number: curveErrDesc = Err.Description
+    On Error GoTo 0
+
+    after = FeatCount(swModel)
+    If after > before Or before = -1 Then
+        swModel.ViewZoomtofit2
+        MsgBox "Curve created through ${pts.length} points." & vbCrLf & _
+               "Sweep your flume profile along it."
+    Else
+        MsgBox "No curve feature was added." & vbCrLf & _
+               "Features before " & before & ", after " & after & vbCrLf & _
+               "Err " & curveErrNum & " " & curveErrDesc & vbCrLf & vbCrLf & _
+               "Try BuildSketchSpline, or import the .sldcrv by hand."
+    End If
+End Sub
+
+Sub BuildSketchSpline()
+    Dim swSpline As Object
+    Set swModel = GetPart()
+    If swModel Is Nothing Then Exit Sub
+
+    ' A typed Double array is required here, which is exactly what VBScript
+    ' cannot produce. In VBA it is fine.
+    Dim p(${pts.length*3-1}) As Double
+${arr}
+
+    Dim vPts As Variant
+    vPts = p
+
+    swModel.SketchManager.Insert3DSketch True
+    Set swSpline = swModel.SketchManager.CreateSpline((vPts))
+    swModel.SketchManager.Insert3DSketch True
+
+    If swSpline Is Nothing Then
+        MsgBox "Spline was not created. Try BuildCurve instead."
+    Else
+        swModel.ViewZoomtofit2
+        MsgBox "3D sketch spline created through ${pts.length} points."
+    End If
+End Sub`;
+}
+function vbsScript(){
+  const pts=splinePoints();
+  return `' ${macroHeader().join("\n' ")}
+'
+' Double-click to run. Builds a Curve Through XYZ Points feature.
+' Scalar API calls only: VBScript arrays are Variant arrays, which
+' SketchManager.CreateSpline will not accept.
+' Success is judged by whether a feature appeared, not by return values.
+Option Explicit
+
+Dim swApp, swModel, tmpl, before, after, curveErrNum, curveErrDesc
+
+Function FeatCount(m)
+    FeatCount = -1
+    On Error Resume Next
+    FeatCount = m.GetFeatureCount
+    On Error GoTo 0
+End Function
+
+On Error Resume Next
+Set swApp = GetObject(, "SldWorks.Application")
+On Error GoTo 0
+
+If swApp Is Nothing Then
+    On Error Resume Next
+    Set swApp = CreateObject("SldWorks.Application")
+    On Error GoTo 0
+    If swApp Is Nothing Then
+        MsgBox "SolidWorks is not running and could not be started."
+        WScript.Quit
+    End If
+End If
+swApp.Visible = True
+
+Set swModel = swApp.ActiveDoc
+If swModel Is Nothing Then
+    tmpl = swApp.GetUserPreferenceStringValue(9)
+    Set swModel = swApp.NewDocument(tmpl, 0, 0, 0)
+End If
+If swModel Is Nothing Then
+    MsgBox "No part document available. Open a part and run again."
+    WScript.Quit
+End If
+If swModel.GetType <> 1 Then
+    MsgBox "Active document is not a part. Open a part and run again."
+    WScript.Quit
+End If
+If Not swModel.SketchManager.ActiveSketch Is Nothing Then
+    MsgBox "A sketch is open in SolidWorks. Exit sketch mode and run again."
+    WScript.Quit
+End If
+
+swModel.ClearSelection2 True
+before = FeatCount(swModel)
+
+On Error Resume Next
+swModel.InsertCurveFileBegin
+
+${curvePointCalls('',pts)}
+
+swModel.InsertCurveFileEnd
+curveErrNum = Err.Number
+curveErrDesc = Err.Description
+On Error GoTo 0
+
+after = FeatCount(swModel)
+
+If after > before Or before = -1 Then
+${wantPoints()?`    On Error Resume Next
+    swModel.SketchManager.Insert3DSketch True
+    swModel.SetAddToDB True
+
+${sketchPointCalls('    ',markerPoints())}
+
+    swModel.SetAddToDB False
+    swModel.SketchManager.Insert3DSketch True
+    On Error GoTo 0
+`:''}    swModel.ViewZoomtofit2
+    MsgBox "Curve created through ${pts.length} points.${wantPoints()?`" & vbCrLf & "3D sketch added with ${markerPoints().length} station points.`:''}" & vbCrLf & "Sweep your flume profile along it."
+Else
+    MsgBox "No curve feature was added." & vbCrLf & _
+           "Features before " & before & ", after " & after & vbCrLf & _
+           "Err " & curveErrNum & " " & curveErrDesc & vbCrLf & vbCrLf & _
+           "Run flumepath_diagnostic.vbs to find which API this install accepts."
+End If`;
+}
+function assumptionsLog(){
+  const c=S.candidates[S.sel], s=c.rep.res.summary, m=c.path.meta;
+  const L=[];
+  L.push('FLUMEPATH ASSUMPTIONS LOG');
+  L.push('Generated '+new Date().toISOString());
+  L.push('Revision '+S.rev);
+  L.push('');
+  L.push('THIS IS A PRELIMINARY ALIGNMENT STUDY. It is not a stamped design and it');
+  L.push('does not certify compliance with any standard. Limit values below were entered');
+  L.push('by the user; the tool ships none.');
+  L.push('');
+  L.push('--- ALIGNMENT ---');
+  L.push(`Family                ${m.family}`);
+  L.push(`Configuration         ${m.label}`);
+  L.push(`Design grade          ${m.gradeDeg.toFixed(2)} deg`);
+  L.push(`Flume length          ${s.length.toFixed(1)} ft`);
+  L.push(`Drop                  ${s.drop.toFixed(2)} ft`);
+  L.push(`Footprint             ${s.bboxW.toFixed(0)} x ${s.bboxD.toFixed(0)} ft`);
+  L.push('');
+  L.push('--- INPUTS ---');
+  [['Platform elevation','i_platform','ft'],['Base elevation','i_base','ft'],
+   ['Flume inside radius','i_flumeR','ft'],['Wall height','i_wallH','ft'],
+   ['Sag vertical radius','i_sagR','ft'],['Easement length','i_ease','ft'],
+   ['Runout length','i_runout','ft'],['Dispatch velocity','i_v0','ft/s'],
+   ['v^2 drag coefficient','i_kdrag','1/ft']].forEach(([n,id,u])=>
+    L.push(`${n.padEnd(22)}${$(id).value} ${u}`));
+  L.push('');
+  L.push('--- RIDER CASES (mu is a user estimate, not a standard) ---');
+  RIDERS.forEach(r=>L.push(`${(r.on?'[x] ':'[ ] ')}${r.n.padEnd(18)}mu = ${r.mu}`));
+  L.push('');
+  L.push('--- LIMITS AS ENTERED ---');
+  LIMITS.forEach(l=>{
+    const v=limitVals[l.k];
+    L.push(`${l.n.padEnd(38)}${v===undefined?'NOT SET':String(v).padStart(8)} ${l.u.padEnd(6)} ${limitRefs[l.k]||''}`);
+  });
+  L.push('');
+  L.push('--- COMPUTED WORST CASE ACROSS ENABLED RIDERS ---');
+  LIMITS.forEach(l=>{
+    const v=c.worst[l.k], r=checkOf(l.k,v);
+    L.push(`${l.n.padEnd(38)}${fmt(v,3).padStart(8)} ${l.u.padEnd(6)} ${r.toUpperCase()}  governing: ${c.gov[l.k].rider||'-'}`);
+  });
+  if(c.stalledAny)L.push('WARNING: one or more rider cases stall on this alignment.');
+  L.push('');
+  L.push('--- METHOD ---');
+  L.push('Velocity: energy march, v^2 += 2*ds*(g*sin(th) - mu*g*cos(th) - k*v^2).');
+  L.push('Curvature: circumscribed circle over a finite stencil of the resampled centreline.');
+  L.push('Specific force resolved into a flume-fixed frame; bank angle = atan2(lateral, normal).');
+  L.push('Wall climb = r_flume * (1 - cos(bank)). Freeboard = wall height - climb.');
+  L.push('Hydrodynamic lift, water depth, banking built into the flume section, and rider');
+  L.push('body dynamics are NOT modelled. Calibrate mu and the drag term against test data.');
+  return L.join('\n');
+}
+function previewExport(){
+  if(S.sel===null)return;
+  const t=sldcrv().split('\n');
+  $('exPreview').textContent=
+    `# ${curName('sldcrv')}  (${t.length} points, ${$('i_units').value})\n`+
+    t.slice(0,10).join('\n')+`\n... ${t.length-10} more rows\n\n`+
+    `# ${curName('bas')}  (${splinePoints().length} spline points)\n`+
+    basModule().split('\n').slice(0,12).join('\n')+`\n...`;
+}
+
+/* ==========================================================
+   8. PROJECT SAVE / LOAD
+   ========================================================== */
+const INPUT_IDS=['i_splinePts','i_ptEvery','i_platform','i_base','i_siteW','i_siteD','i_runout','i_flumeR','i_wallH',
+ 'i_sagR','i_ease','i_v0','i_kdrag','i_Rmin','i_Rmax','i_Rstep','i_catalog','w_margin','w_foot',
+ 'w_len','w_thrill','i_riders','i_interval','i_riderW','i_flumeW','i_towerSp','i_flowPerFt',
+ 'i_pumpLoss','i_decel','i_units'];
+
+function saveProject(){
+  const o={inputs:{},limits:limitVals,refs:limitRefs,
+    riders:RIDERS.map(r=>({id:r.id,mu:r.mu,on:r.on})),saved:new Date().toISOString()};
+  INPUT_IDS.forEach(id=>o.inputs[id]=$(id).value);
+  dl('flumepath_project.json',JSON.stringify(o,null,2),'application/json');
+}
+function loadProject(f){
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const o=JSON.parse(rd.result);
+      Object.entries(o.inputs||{}).forEach(([k,v])=>{if($(k))$(k).value=v;});
+      Object.keys(limitVals).forEach(k=>delete limitVals[k]);
+      Object.assign(limitVals,o.limits||{});
+      Object.assign(limitRefs,o.refs||{});
+      (o.riders||[]).forEach(r=>{const t=RIDERS.find(x=>x.id===r.id);if(t){t.mu=r.mu;t.on=r.on;}});
+      buildRiderUI();
+      document.querySelectorAll('[data-lim]').forEach(inp=>{
+        const v=limitVals[inp.dataset.lim];
+        inp.value=v===undefined?'':v;
+        inp.classList.toggle('unset',v===undefined);
+      });
+      document.querySelectorAll('[data-ref]').forEach(inp=>inp.value=limitRefs[inp.dataset.ref]||'');
+      S.sel=null; generate();
+    }catch(e){alert('That file could not be read as a FlumePath project.');}
+  };
+  rd.readAsText(f);
+}
+
+/* ==========================================================
+   9. WIRE UP
+   ========================================================== */
+function syncDrop(){
+  const d=val('i_platform')-val('i_base');
+  $('hDrop').textContent=isFinite(d)?d.toFixed(1)+" ft":'—';
+}
+buildRiderUI(); buildLimitUI(); syncDrop();
+$('i_platform').oninput=syncDrop; $('i_base').oninput=syncDrop;
+$('btnRun').onclick=()=>{
+  const b=$('btnRun'); b.disabled=true; b.textContent='Solving\u2026';
+  setTimeout(()=>{ S.sel=null; try{generate();} finally{ b.disabled=false; b.textContent='Generate candidates'; } },20);
+};
+$('btnSave').onclick=saveProject;
+$('btnLoad').onclick=()=>$('fileIn').click();
+$('fileIn').onchange=e=>{if(e.target.files[0])loadProject(e.target.files[0]);};
+['w_margin','w_foot','w_len','w_thrill'].forEach(id=>
+  $(id).oninput=()=>{if(S.candidates.length)rankAndRender();});
+$('i_units').onchange=previewExport;
+$('i_catalog').oninput=()=>{if(S.sel!==null)renderSegments(S.candidates[S.sel]);};
+['i_riders','i_interval','i_riderW','i_flumeW','i_towerSp','i_flowPerFt','i_pumpLoss','i_decel']
+  .forEach(id=>$(id).oninput=()=>{if(S.sel!==null)renderSystems(S.candidates[S.sel]);});
+$('ex_sldcrv').onclick=()=>S.sel!==null&&dl(curName('sldcrv'),sldcrv());
+$('ex_csv').onclick=()=>S.sel!==null&&dl(curName('csv'),csvFull(),'text/csv');
+const crlf=t=>ascii(t).replace(/\r?\n/g,'\r\n');   // Windows script hosts want CRLF
+$('ex_bas').onclick=()=>S.sel!==null&&dl(curName('bas'),crlf(basModule()));
+$('ex_vbs').onclick=()=>S.sel!==null&&dl(curName('vbs'),crlf(vbsScript()));
+$('i_splinePts').oninput=previewExport;
+$('i_ptEvery').oninput=previewExport;
+$('i_makePoints').onchange=previewExport;
+$('ex_seg').onclick=()=>S.sel!==null&&dl('segment_schedule.csv',segCsv(),'text/csv');
+$('ex_log').onclick=()=>S.sel!==null&&dl('assumptions_log.txt',assumptionsLog());
+let rzT=null;
+window.addEventListener('resize',()=>{clearTimeout(rzT);
+  rzT=setTimeout(()=>{if(S.sel!==null)renderSelected();},160);});
+generate();
+</script>
+</body>
+</html>
