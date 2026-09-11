@@ -24,7 +24,9 @@ Version 1.1.1
 
 ## 1. Before you start
 
-Open `flumepath.html` in a browser. Nothing to install, nothing to configure.
+Open <https://briancbealstack.github.io/Flume-Designer/>, or open a downloaded copy of
+`index.html` in any browser. Nothing to install, nothing to configure, and it behaves
+identically either way — the file is entirely self-contained.
 
 The app generates a first set of candidates immediately from its defaults, so you land on
 a populated screen rather than a blank one. Those defaults are a 48 ft platform on a

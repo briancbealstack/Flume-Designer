@@ -16,13 +16,17 @@ compliance with anything.
 
 | File | Purpose |
 |---|---|
-| `flumepath.html` | The entire application — markup, styles, solver and exporters in one file |
+| `index.html` | The entire application — markup, styles, solver and exporters in one file |
 | `USER_MANUAL.md` | How to drive it, end to end, with a worked example |
 | `README.md` | This document — what it is, how it works, what it assumes |
 
 ## Running it
 
-Open `flumepath.html` in any modern browser. That is the whole procedure.
+**Live:** <https://briancbealstack.github.io/Flume-Designer/>
+
+Or open `index.html` in any modern browser — download it, double-click it, done. The file is
+wholly self-contained, so it runs the same from a local disk, a network share or a USB stick
+as it does from the hosted URL.
 
 There is no build, no package manager and no server. The only external reference is a
 Google Fonts stylesheet for the Barlow typefaces; with no network the app falls back to
@@ -230,6 +234,27 @@ them against your own timing runs before you rely on any output.
   candidates carry a real crest; only a pure straight ramp reports none.
 - The header's "rev N" is a session counter that increments on each generate, stamped into the
   assumptions log for traceability. It is not the application version.
+
+---
+
+## Deployment
+
+The site is served by GitHub Pages at
+<https://briancbealstack.github.io/Flume-Designer/>.
+
+| Setting | Value |
+|---|---|
+| Source | Deploy from a branch |
+| Branch | `claude/busy-gates-fuslp4` (the repository default branch), `/` root |
+| Build | GitHub's built-in `pages-build-deployment`, no workflow file of our own |
+
+Because the app is one static file, deployment is just the file being present: `index.html`
+at the repository root *is* the site. Pushing to the branch above republishes it within a
+minute or so, and `.nojekyll` tells Pages to serve the tree verbatim rather than running it
+through Jekyll.
+
+`index.html` and the downloadable copy are the same file — there is no build output and no
+separate hosted variant to keep in sync.
 
 ---
 
