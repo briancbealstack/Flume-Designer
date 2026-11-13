@@ -1,6 +1,6 @@
 # FlumePath — water slide alignment solver
 
-**Version 1.1.1** · single-file browser application · no build step, no install, no server
+**Version 1.1.2** · single-file browser application · no build step, no install, no server
 
 FlumePath is a preliminary-design tool for water slide (flume) alignments. You give it a
 platform height, a site envelope and a flume cross-section; it sweeps several hundred
@@ -228,12 +228,61 @@ them against your own timing runs before you rely on any output.
   distance, so the true 3D arc length exceeds the plan length and the space-curve radius
   differs slightly from the nominal segment radius. The station table and exports report the
   solved 3D geometry, not the nominal.
-- Crest and sag vertical radii are measured in the **flume-fixed frame**, which tilts through
-  banked turns — not in the global vertical plane. So a helix reports a finite crest radius
-  even though its profile only ever descends. On the shipped defaults, 117 of 118 surviving
-  candidates carry a real crest; only a pure straight ramp reports none.
-- The header's "rev N" is a session counter that increments on each generate, stamped into the
-  assumptions log for traceability. It is not the application version.
+- The profile never crests, but "minimum crest vertical radius" still reports a number on
+  almost every curved alignment. **Treat it as numerical noise, not a crest.** On the shipped
+  defaults all 117 finite values exceed 11,000 ft and unload the rider by at most 0.005 g —
+  the residue of resolving a descending helix into a flume-fixed frame. Such values pass any
+  sensible limit, so compliance is unaffected, but the figure carries no design meaning. (An
+  earlier revision of this document called these "real" crests. That was wrong.)
+- The segment schedule is stationed in **plan** (horizontal) distance; the station table,
+  ledger and exports are stationed along the 3D flume. The two diverge with grade — under
+  1 % on a 5° helix, about 10 % on a 33° straight ramp.
+- Self-overlapping plans (multi-turn helices) stack their 50 ft station labels on top of one
+  another in the plan drawing. Read stations from the station table in that case.
+- "Minimum headway" in the systems panel always equals the dispatch interval you entered;
+  it is an echo of the input, not an independent result.
+- The assumptions log records the alignment, flume section and rider inputs, but not the
+  site envelope, sweep range, ranking weights or systems inputs. The project file has all
+  of them — keep the two together.
+- The header shows the application version and a session counter ("v1.1.2 · rev N"). The
+  counter increments on each generate and is stamped into the assumptions log.
+
+---
+
+## Audit and changes in 1.1.2
+
+Version 1.1.1 was audited end to end by driving the real page in headless Chromium:
+141 checks across loading, the sweep gates, selection and drawing, limits, rider cases,
+ranking, systems arithmetic, all six exports, project save/load, edge inputs, performance
+and layout. The solver core is byte-identical between 1.1.1 and 1.1.2 — every fix below is
+in input handling, display or export text.
+
+| # | Defect in 1.1.1 | Fix |
+|---|---|---|
+| 1 | Editing a physics input (wall height, flume radius, dispatch speed, drag, rider μ) without regenerating, then clicking a row, silently recomputed that one row with the new values while every other row kept the old | Results are computed from a snapshot taken at generate time; an "inputs changed — generate again" flag appears until you do |
+| 2 | A blank numeric input was accepted: a blank radius step swept only the minimum radius, a blank site width switched the footprint gate off and turned every score into `NaN` | Generate refuses, names the field and focuses it |
+| 3 | A refused sweep (drop under 1 ft) left the previous alignment on screen but dead — export buttons did nothing | The selection is only reset when a sweep actually commits |
+| 4 | A sweep with no survivors left the previous alignment's drawings, ledger and header in place | Cleared |
+| 5 | Clearing a ranking weight showed `NaN` for every score | Blank or negative weight counts as zero |
+| 6 | "Runout required" went negative when exit speed was under 3 ft/s | Floored at zero |
+| 7 | The `.vbs` failure message told the user to run `flumepath_diagnostic.vbs`, which does not exist | Points to the `.sldcrv` manual import instead |
+| 8 | Loading a project did not refresh the header drop | Refreshed |
+| 9 | Loading a project merged its clause references into whatever was already typed, so stale references could reach the assumptions log | References are replaced |
+| 10 | The candidate table silently showed only the top 120 rows | The heading says so when it applies |
+| 11 | Profile caption overprinted the drop annotation; wide strip-chart axis values overprinted the chart title | Repositioned / shortened |
+| 12 | Station table had two columns both headed "v"; units ran into field labels ("elevationft") | Labelled "v ft/s" and "v mph"; spaced |
+| 13 | Ledger, limits and segment tables overflowed the page at phone width | They scroll sideways |
+
+Also new: the application version appears in the header and in the assumptions log, the
+log warns if inputs were edited after the sweep it describes, and the segment schedule
+states that its stations are plan distance.
+
+Not exercised: the generated `.bas` and `.vbs` were checked for structure, encoding, line
+endings, point counts and units, but **not run inside SolidWorks** — there is no SolidWorks
+in the test environment.
+
+One browser behaviour to know: Chromium asks before letting a page save more than about ten
+files in one visit. Allow it, or reload the page.
 
 ---
 

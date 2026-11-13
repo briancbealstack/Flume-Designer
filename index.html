@@ -58,7 +58,7 @@ header .spacer{flex:1}
 .grp .body{padding:10px 14px 14px}
 .f{display:grid;grid-template-columns:1fr 84px;gap:5px 8px;align-items:center;margin-bottom:6px}
 .f label{font-size:13px;color:var(--ink);line-height:1.2}
-.f .u{font-size:11.5px;color:var(--graphite)}
+.f .u{font-size:11.5px;color:var(--graphite);margin-left:4px}
 input[type=number],input[type=text],select{
   width:100%;padding:4px 6px;border:1px solid var(--rule);border-radius:var(--r);
   background:#fff;font-family:inherit;font-size:13.5px;color:var(--ink);
@@ -109,6 +109,9 @@ tbody tr.sel{background:#E4F2F8;box-shadow:inset 3px 0 0 var(--flume)}
 tbody tr.pick{cursor:pointer}
 tbody tr.pick:hover{background:#F1F7FA}
 .scroll{max-height:340px;overflow:auto}
+.block>.body{overflow-x:auto}
+[hidden]{display:none!important}
+button.stale,button.stale:hover{background:var(--signal);border-color:var(--signal)}
 .tag{font-size:11.5px;font-weight:600;padding:1px 6px;border-radius:9px;font-family:'Barlow Semi Condensed';letter-spacing:.03em}
 .t-pass{background:#E3F0EA;color:var(--pass)}
 .t-fail{background:#FCEAE2;color:var(--signal)}
@@ -255,7 +258,8 @@ pre{
 
   <!-- CANDIDATES -->
   <section class="block">
-    <h2>Candidate alignments <span class="sub" id="candSub">not generated</span></h2>
+    <h2>Candidate alignments <span class="sub" id="candSub">not generated</span>
+      <span class="tag t-warn" id="staleTag" hidden>inputs changed &mdash; generate again</span></h2>
     <div class="body" style="padding:0">
       <div class="scroll"><table id="candTable"><thead><tr>
         <th>Family</th><th>Configuration</th><th class="num">Grade</th><th class="num">Length</th>
@@ -304,7 +308,7 @@ pre{
 
   <!-- SEGMENT SCHEDULE -->
   <section class="block">
-    <h2>Segment schedule <span class="sub">tangents, easements and arcs as built</span></h2>
+    <h2>Segment schedule <span class="sub">tangents, easements and arcs as built &mdash; lengths and stations are plan (horizontal) distance</span></h2>
     <div class="body" style="padding:0">
       <table id="segTable"><thead><tr>
         <th>No.</th><th>Type</th><th class="num">Length</th><th class="num">Radius</th>
@@ -325,7 +329,7 @@ pre{
     <div class="body" style="padding:0">
       <div class="scroll"><table id="staTable"><thead><tr>
         <th class="num">Sta.</th><th class="num">X</th><th class="num">Y</th><th class="num">Z</th>
-        <th class="num">Grade</th><th class="num">R horiz</th><th class="num">v</th><th class="num">v</th>
+        <th class="num">Grade</th><th class="num">R horiz</th><th class="num">v ft/s</th><th class="num">v mph</th>
         <th class="num">Lat g</th><th class="num">Norm g</th><th class="num">Bank</th>
         <th class="num">Climb</th><th class="num">Freeboard</th><th class="num">Roll</th>
       </tr></thead><tbody><tr><td colspan="14"><div class="empty">Select a candidate.</div></td></tr></tbody></table></div>
@@ -596,15 +600,25 @@ const RIDERS=[
 /* ==========================================================
    3. STATE + INPUT PLUMBING
    ========================================================== */
-const S={candidates:[],sel:null,rev:1};
+const APP_VERSION='1.1.2';
+const S={candidates:[],sel:null,rev:1,snap:null,stale:false};
 const $=id=>document.getElementById(id);
 const val=id=>parseFloat($(id).value);
 const fmt=(x,d=2)=>!isFinite(x)?'∞':(Math.abs(x)>=1e6?'—':x.toFixed(d));
 
-function cfgBase(mu){return{
-  ds:1.0, v0:val('i_v0'), mu, kDrag:val('i_kdrag'),
-  flumeR:val('i_flumeR'), wallH:val('i_wallH'), stencil:6
+function cfgBase(mu){const c=S.snap;return{
+  ds:1.0, v0:c.v0, mu, kDrag:c.kDrag,
+  flumeR:c.flumeR, wallH:c.wallH, stencil:6
 };}
+// Inputs that feed the sweep. Editing any of them leaves the results on screen
+// describing the previous inputs until candidates are generated again.
+const SWEEP_IDS=['i_platform','i_base','i_siteW','i_siteD','i_runout','i_flumeR','i_wallH',
+  'i_sagR','i_ease','i_v0','i_kdrag','i_Rmin','i_Rmax','i_Rstep'];
+function setStale(on){
+  S.stale=on;
+  $('btnRun').classList.toggle('stale',on);
+  $('staleTag').hidden=!on;
+}
 
 function buildRiderUI(){
   $('riderList').innerHTML=RIDERS.map(r=>`
@@ -614,9 +628,9 @@ function buildRiderUI(){
       <input type="number" step="0.005" data-mu="${r.id}" value="${r.mu}">
     </div>`).join('');
   $('riderList').querySelectorAll('[data-r]').forEach(c=>
-    c.onchange=e=>{RIDERS.find(r=>r.id===e.target.dataset.r).on=e.target.checked;});
+    c.onchange=e=>{RIDERS.find(r=>r.id===e.target.dataset.r).on=e.target.checked;setStale(true);});
   $('riderList').querySelectorAll('[data-mu]').forEach(c=>
-    c.onchange=e=>{RIDERS.find(r=>r.id===e.target.dataset.mu).mu=parseFloat(e.target.value);});
+    c.onchange=e=>{RIDERS.find(r=>r.id===e.target.dataset.mu).mu=parseFloat(e.target.value);setStale(true);});
 }
 
 function buildLimitUI(){
@@ -645,7 +659,7 @@ function activeRiders(){const a=RIDERS.filter(r=>r.on);return a.length?a:[RIDERS
 
 function evaluate(path,ds){
   // solve for every enabled rider, keep the worst case per criterion
-  const runs=activeRiders().map(r=>({rider:r,res:solve(path.pts,{...cfgBase(r.mu),ds:ds||1.0})}));
+  const runs=S.snap.riders.map(r=>({rider:r,res:solve(path.pts,{...cfgBase(r.mu),ds:ds||1.0})}));
   const worst={}; const gov={};
   for(const L of LIMITS){
     let best=null,bestR=null,bestS=null;
@@ -681,9 +695,18 @@ function marginScore(worst){
 }
 
 function generate(){
+  const blank=SWEEP_IDS.find(id=>!isFinite(val(id)));
+  if(blank){
+    const grp=$(blank).closest('details'); if(grp)grp.open=true;
+    alert(`"${$(blank).closest('.f').querySelector('label').firstChild.textContent.trim()}" needs a number before candidates can be generated.`);
+    $(blank).focus(); return;
+  }
+  if(RIDERS.some(r=>r.on&&!isFinite(r.mu))){alert('Every enabled rider case needs a friction coefficient.');return;}
   const platform=val('i_platform'), base=val('i_base');
   const drop=platform-base;
   if(!(drop>1)){alert('Platform elevation must sit at least 1 ft above the base elevation.');return;}
+  S.snap={v0:val('i_v0'),kDrag:val('i_kdrag'),flumeR:val('i_flumeR'),wallH:val('i_wallH'),
+    riders:activeRiders().map(r=>({...r}))};
   const siteW=val('i_siteW'), siteD=val('i_siteD');
   const common={drop, runout:val('i_runout'), sagR:val('i_sagR'), ease:val('i_ease')};
   const Rmin=val('i_Rmin'),Rmax=val('i_Rmax'),Rstep=Math.max(1,val('i_Rstep'));
@@ -711,7 +734,8 @@ function generate(){
   for(let R=Rmin;R<=Rmax;R+=Rstep)
     for(const t of [2,3,4]) push('doubleHelix',{R,turns:t,entryLen:20,tanLen:28});
 
-  S.candidates=out; S.rev++;
+  S.candidates=out; S.sel=null; S.rev++;
+  setStale(false);
   rankAndRender();
   $('hCount').textContent=out.length;
   updateCandSub();
@@ -719,7 +743,20 @@ function generate(){
     $('candTable').querySelector('tbody').innerHTML=
       `<tr><td colspan="13"><div class="empty">No alignment absorbs ${drop.toFixed(1)} ft of drop inside this footprint.
        Widen the site, shorten the runout, or open up the radius range.</div></td></tr>`;
+    clearSelected();
   }
+}
+
+function clearSelected(){
+  $('hSel').textContent='none'; $('drawSub').textContent='\u2014';
+  ['cPlan','cProf','cV','cLat','cNorm','cClimb','cRoll'].forEach(id=>{const {g,w,h}=fitCanvas($(id));g.clearRect(0,0,w,h);});
+  const empty=(id,n)=>$(id).querySelector('tbody').innerHTML=
+    `<tr><td colspan="${n}"><div class="empty">Select a candidate.</div></td></tr>`;
+  empty('ledger',7); empty('segTable',8); empty('staTable',14);
+  $('sysKv').innerHTML='<div><span class="k">\u2014</span><span class="v">\u2014</span></div>';
+  $('staSub').textContent='every 10 ft';
+  $('hRev').textContent='v'+APP_VERSION+' \u00b7 rev '+S.rev;
+  $('exPreview').textContent='Select a candidate to preview an export.';
 }
 
 function updateCandSub(){
@@ -728,12 +765,14 @@ function updateCandSub(){
   const nSet=LIMITS.filter(l=>limitVals[l.k]!==undefined).length;
   $('candSub').textContent=`${n} feasible within the ${val('i_siteW')} × ${val('i_siteD')} ft envelope`
     +(nSet===0?' — ranked without compliance input, no limits entered yet'
-             :` — checked against ${nSet} of ${LIMITS.length} limits`);
+             :` — checked against ${nSet} of ${LIMITS.length} limits`)
+    +(n>120?' — showing the top 120 by score':'');
 }
 
 function scoreOf(c){
   const s=c.rep.res.summary;
-  const wM=val('w_margin'),wF=val('w_foot'),wL=val('w_len'),wT=val('w_thrill');
+  const wt=id=>{const v=val(id);return isFinite(v)&&v>0?v:0;};   // blank or negative weight counts as zero
+  const wM=wt('w_margin'),wF=wt('w_foot'),wL=wt('w_len'),wT=wt('w_thrill');
   const tot=Math.max(1e-6,wM+wF+wL+wT);
   const m=marginScore(c.worst);
   const nm=m===null?0.5:(m+1)/2;
@@ -878,7 +917,9 @@ function drawProfile(cv,st){
   st.forEach((p,i)=>i?g.lineTo(X(p),Y(p)):g.moveTo(X(p),Y(p)));g.stroke();
   // grade annotation
   g.fillStyle=css('--ink');g.font='11px Barlow';
-  g.fillText(`drop ${(st[0].z-st[st.length-1].z).toFixed(1)} ft over ${s1.toFixed(0)} ft of flume`,pad,16);
+  g.textAlign='right';        // right-aligned so it clears the PROFILE caption
+  g.fillText(`drop ${(st[0].z-st[st.length-1].z).toFixed(1)} ft over ${s1.toFixed(0)} ft of flume`,w-pad,16);
+  g.textAlign='left';
 }
 
 function strip(cv,st,key,title,unit,opts={}){
@@ -923,7 +964,8 @@ function strip(cv,st,key,title,unit,opts={}){
   g.fillStyle=css('--ink');g.font='600 11.5px Barlow Semi Condensed';
   g.fillText(title,pad,12);
   g.fillStyle=css('--graphite');g.font='10px Barlow';
-  g.fillText(hi.toFixed(2),3,14); g.fillText(lo.toFixed(2),3,h-18);
+  const ax=v=>Math.abs(v)>=100?v.toFixed(0):Math.abs(v)>=10?v.toFixed(1):v.toFixed(2);   // keep the label inside the gutter
+  g.fillText(ax(hi),3,14); g.fillText(ax(lo),3,h-18);
   g.fillText(unit,pad+g.measureText(title).width+38,12);
   g.fillText(`station ${s1.toFixed(0)} ft`,w-78,h-4);
 }
@@ -936,7 +978,7 @@ function renderSelected(){
   const c=S.candidates[S.sel], st=c.rep.res.st, s=c.rep.res.summary;
   $('hSel').textContent=`${c.path.meta.family} · ${c.path.meta.label}`;
   $('drawSub').textContent=`${c.path.meta.family} — ${c.path.meta.label} · governing rider trace: ${c.rep.rider.n}`;
-  $('ledSub').textContent=`worst case across ${activeRiders().length} enabled rider case${activeRiders().length>1?'s':''}`;
+  $('ledSub').textContent=`worst case across ${S.snap.riders.length} enabled rider case${S.snap.riders.length>1?'s':''}`;
 
   drawPlan($('cPlan'),st);
   drawProfile($('cProf'),st);
@@ -947,7 +989,7 @@ function renderSelected(){
   strip($('cRoll'),st,'rollRate','Roll rate','deg/s',{limit:limitVals.rollMax,dir:'max',floor:0});
 
   renderLedger(c); renderSegments(c); renderSystems(c); renderStations(st);
-  $('hRev').textContent='rev '+S.rev;
+  $('hRev').textContent='v'+APP_VERSION+' \u00b7 rev '+S.rev;
   previewExport();
 }
 
@@ -1017,7 +1059,7 @@ function renderSystems(c){
   const Rv=wDead+wLive;
   const Rl=val('i_riderW')*s.aLatMax;
   const decel=Math.max(0.5,val('i_decel'));
-  const runoutReq=(s.vExit*s.vExit-9)/(2*decel);
+  const runoutReq=Math.max(0,(s.vExit*s.vExit-9)/(2*decel));
   const runoutHave=val('i_runout');
   const cell=(k,v,note)=>`<div><span class="k">${k}</span><span class="v">${v} ${note?`<small>${note}</small>`:''}</span></div>`;
   $('sysKv').innerHTML=[
@@ -1339,13 +1381,14 @@ Else
     MsgBox "No curve feature was added." & vbCrLf & _
            "Features before " & before & ", after " & after & vbCrLf & _
            "Err " & curveErrNum & " " & curveErrDesc & vbCrLf & vbCrLf & _
-           "Run flumepath_diagnostic.vbs to find which API this install accepts."
+           "Import the .sldcrv by hand instead: Insert > Curve > Curve Through XYZ Points."
 End If`;
 }
 function assumptionsLog(){
   const c=S.candidates[S.sel], s=c.rep.res.summary, m=c.path.meta;
   const L=[];
   L.push('FLUMEPATH ASSUMPTIONS LOG');
+  L.push('FlumePath version '+APP_VERSION);
   L.push('Generated '+new Date().toISOString());
   L.push('Revision '+S.rev);
   L.push('');
@@ -1384,6 +1427,7 @@ function assumptionsLog(){
     L.push(`${l.n.padEnd(38)}${fmt(v,3).padStart(8)} ${l.u.padEnd(6)} ${r.toUpperCase()}  governing: ${c.gov[l.k].rider||'-'}`);
   });
   if(c.stalledAny)L.push('WARNING: one or more rider cases stall on this alignment.');
+  if(S.stale)L.push('WARNING: inputs were edited after this sweep. The INPUTS and RIDER CASES sections show the edited values; the results are for the previous ones. Generate again before relying on this log.');
   L.push('');
   L.push('--- METHOD ---');
   L.push('Velocity: energy march, v^2 += 2*ds*(g*sin(th) - mu*g*cos(th) - k*v^2).');
@@ -1426,6 +1470,7 @@ function loadProject(f){
       Object.entries(o.inputs||{}).forEach(([k,v])=>{if($(k))$(k).value=v;});
       Object.keys(limitVals).forEach(k=>delete limitVals[k]);
       Object.assign(limitVals,o.limits||{});
+      Object.keys(limitRefs).forEach(k=>delete limitRefs[k]);
       Object.assign(limitRefs,o.refs||{});
       (o.riders||[]).forEach(r=>{const t=RIDERS.find(x=>x.id===r.id);if(t){t.mu=r.mu;t.on=r.on;}});
       buildRiderUI();
@@ -1435,7 +1480,7 @@ function loadProject(f){
         inp.classList.toggle('unset',v===undefined);
       });
       document.querySelectorAll('[data-ref]').forEach(inp=>inp.value=limitRefs[inp.dataset.ref]||'');
-      S.sel=null; generate();
+      syncDrop(); setStale(true); generate();
     }catch(e){alert('That file could not be read as a FlumePath project.');}
   };
   rd.readAsText(f);
@@ -1450,9 +1495,10 @@ function syncDrop(){
 }
 buildRiderUI(); buildLimitUI(); syncDrop();
 $('i_platform').oninput=syncDrop; $('i_base').oninput=syncDrop;
+SWEEP_IDS.forEach(id=>$(id).addEventListener('input',()=>setStale(true)));
 $('btnRun').onclick=()=>{
   const b=$('btnRun'); b.disabled=true; b.textContent='Solving\u2026';
-  setTimeout(()=>{ S.sel=null; try{generate();} finally{ b.disabled=false; b.textContent='Generate candidates'; } },20);
+  setTimeout(()=>{ try{generate();} finally{ b.disabled=false; b.textContent='Generate candidates'; } },20);
 };
 $('btnSave').onclick=saveProject;
 $('btnLoad').onclick=()=>$('fileIn').click();

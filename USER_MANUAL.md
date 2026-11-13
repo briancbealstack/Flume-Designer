@@ -1,6 +1,6 @@
 # FlumePath user manual
 
-Version 1.1.1
+Version 1.1.2
 
 ---
 
@@ -96,6 +96,12 @@ A 52 ft tower on a 160 × 120 ft pad, single and double tubes only.
 | Runout length | Level deceleration length appended to every alignment |
 
 Drop is platform minus base, shown live in the header. It must exceed 1 ft.
+
+**Editing any input in the first four groups, or any rider case, makes the results on screen
+out of date.** An amber "inputs changed — generate again" tag appears beside the candidate
+heading and the Generate button turns orange. Until you regenerate, everything shown —
+including rows you click and files you export — still describes the previous inputs. A blank
+field is refused when you generate, with the field named.
 
 ### Flume section
 
@@ -276,7 +282,9 @@ Use the station number to jump back to the strip charts and see the context of t
 ## 9. Segment schedule, systems and stations
 
 **Segment schedule** — the alignment as buildable pieces: tangents, easements and arcs with
-length, radius, arc angle, and start and end stations. The last column gives the nearest
+length, radius, arc angle, and start and end stations. These lengths and stations are **plan
+(horizontal) distance**; the station table and the ledger are measured along the 3D flume, so
+the two differ slightly — more on steep alignments. The last column gives the nearest
 radius from your catalog list and the delta, green within 0.75 ft and amber beyond. This is
 where you find out whether a candidate can be built from stock parts.
 
@@ -413,6 +421,16 @@ section. Increase arc radius, reduce speed by lengthening the alignment, or rais
 Lengthen the runout, increase the deceleration rate if your surface justifies it, or slow
 the ride down upstream.
 
+**An amber "inputs changed" tag will not go away.**
+Click Generate candidates. If a message names a field, that field is blank or not a number.
+
+**The table says "showing the top 120 by score".**
+Wide sweeps can produce over a thousand survivors; only the best 120 are listed. Narrow the
+radius range or raise the step to see a different slice.
+
+**The browser asks whether to allow multiple downloads.**
+Chromium-based browsers ask after roughly ten saves in one visit. Allow it.
+
 **The candidate table and the ledger disagree slightly.**
 Expected. The table is the coarse pass until the row is selected; the ledger is always
 refined. Trust the ledger.
@@ -438,10 +456,10 @@ velocity solution scales with them, so calibrate against your own timing runs be
 trust a number.
 
 Grade is solved as a single constant descent plus one sag. There is no rolling grade, so the
-profile itself never crests. Crest vertical radius is still meaningful and almost always
-reports a finite value, because it is measured in the flume-fixed frame, which tilts through
-banked turns — on the shipped defaults, 117 of 118 surviving candidates carry a real crest.
-Only a pure straight ramp reports it as unconstrained.
+profile never crests. The ledger still prints a "minimum crest vertical radius" on almost
+every curved alignment, but it is numerical noise: on the shipped defaults every value is
+above 11,000 ft and worth at most 0.005 g. It will pass any sensible limit and should not be
+read as a design quantity.
 
 This is a preliminary alignment study. It is not a stamped design and it does not certify
 compliance with any standard. Nothing it produces substitutes for review by a qualified
